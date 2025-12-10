@@ -6,7 +6,7 @@ This directory contains the formal ontology for the Dataprov provenance tracking
 
 The Dataprov ontology extends the [W3C PROV Ontology](https://www.w3.org/TR/prov-o/) with additional classes and properties specifically designed for tracking data file provenance in processing pipelines.
 
-**Namespace URI:** `https://ri-se.github.io/dataprov/ontology/`
+**Namespace URI:** `https://ri-se.github.io/dataprov/ontology/dataprov.ttl#`
 **Prefix:** `dataprov:`
 **Version:** 3.0.0
 **Format:** Turtle (RDF)
@@ -114,7 +114,7 @@ The Dataprov ontology extends the [W3C PROV Ontology](https://www.w3.org/TR/prov
 ```json
 {
   "prefix": {
-    "dataprov": "https://ri-se.github.io/dataprov/ontology/",
+    "dataprov": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#",
     "prov": "http://www.w3.org/ns/prov#",
     "xsd": "http://www.w3.org/2001/XMLSchema#"
   },
@@ -167,7 +167,7 @@ You can add custom namespace properties to your provenance files:
 ```json
 {
   "prefix": {
-    "dataprov": "https://ri-se.github.io/dataprov/ontology/",
+    "dataprov": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#",
     "prov": "http://www.w3.org/ns/prov#",
     "myapp": "https://myorganization.com/ontology/myapp#"
   },

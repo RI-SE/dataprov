@@ -1110,7 +1110,7 @@ This enables complete provenance chains to be embedded while maintaining W3C PRO
 
 Dataprov extends the [W3C PROV Ontology](https://www.w3.org/TR/prov-o/) with domain-specific classes and properties for tracking data file provenance in processing pipelines.
 
-**Namespace URI:** `https://github.com/RI-SE/dataprov/ontology/`
+**Namespace URI:** `https://ri-se.github.io/dataprov/ontology/dataprov.ttl#`
 **Prefix:** `dataprov:`
 **Version:** 3.0.0
 
