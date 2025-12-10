@@ -1,0 +1,90 @@
+[build-system]
+requires = ["setuptools>=65.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dataprov"
+version = "3.0.0"
+description = "W3C PROV-compliant data provenance tracking library for recording processing chains"
+readme = "README.md"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Fredrik Warg"}
+]
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Logging",
+]
+keywords = ["provenance", "data-lineage", "data-tracking", "metadata", "prov", "w3c", "prov-json"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.8.0",
+    "pre-commit>=4.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.8.0",
+    "pre-commit>=4.0",
+]
+
+[project.scripts]
+dataprov-new = "dataprov.cli.newprovchain:main"
+dataprov-add-attribution = "dataprov.cli.addattribution:main"
+dataprov-visualize = "dataprov.cli.visualize:main"
+dataprov-report = "dataprov.cli.report:main"
+
+[tool.setuptools]
+packages = ["dataprov", "dataprov.cli"]
+
+[tool.setuptools.package-data]
+dataprov = ["dataprov_prov_schema.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = "-v"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "F",      # pyflakes
+    "W",      # pycodestyle warnings
+    "I",      # isort
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "SIM",    # flake8-simplify
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "SIM108", # use ternary operator (can reduce readability)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["dataprov"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
