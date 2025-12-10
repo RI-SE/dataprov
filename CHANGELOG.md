@@ -37,4 +37,4 @@ Initial public release.
 - RDF/Turtle and JSON-LD ontology definitions
 - W3C PROV-JSON schema included
 
-[3.0.0]: https://github.com/fwrise/dataprov/releases/tag/v3.0.0
+[3.0.0]: https://github.com/RI-SE/dataprov/releases/tag/v3.0.0

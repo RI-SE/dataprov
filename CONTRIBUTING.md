@@ -6,7 +6,7 @@ Thank you for your interest in contributing to dataprov!
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/fwrise/dataprov.git
+   git clone https://github.com/RI-SE/dataprov.git
    cd dataprov
    ```
 
