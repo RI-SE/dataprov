@@ -995,7 +995,7 @@ PROV-JSON uses these core concepts:
 ```json
 {
   "prefix": {
-    "dataprov": "http://dataprov.org/ontology/",
+    "dataprov": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl",
     "prov": "http://www.w3.org/ns/prov#",
     "xsd": "http://www.w3.org/2001/XMLSchema#"
   },
