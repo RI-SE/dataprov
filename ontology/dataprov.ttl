@@ -3,10 +3,10 @@
 @prefix owl: <http://www.w3.org/2002/07/owl#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 @prefix prov: <http://www.w3.org/ns/prov#> .
-@prefix dataprov: <https://ri-se.github.io/dataprov/ontology/> .
+@prefix dataprov: <https://ri-se.github.io/dataprov/ontology/dataprov.ttl#> .
 @prefix dcterms: <http://purl.org/dc/terms/> .
 
-<https://ri-se.github.io/dataprov/ontology/>
+<https://ri-se.github.io/dataprov/ontology/dataprov.ttl#>
     a owl:Ontology ;
     rdfs:label "Dataprov Ontology" ;
     rdfs:comment "Extension ontology for W3C PROV to support data provenance tracking in processing pipelines" ;
@@ -27,14 +27,14 @@ dataprov:RootEntity
     rdfs:subClassOf prov:Entity ;
     rdfs:label "Root Entity" ;
     rdfs:comment "The initial source entity in a provenance chain, representing the starting point of data processing." ;
-    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/> .
+    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/dataprov.ttl#> .
 
 dataprov:DataFile
     a owl:Class ;
     rdfs:subClassOf prov:Entity ;
     rdfs:label "Data File" ;
     rdfs:comment "A file entity representing data at various stages in the processing pipeline." ;
-    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/> .
+    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/dataprov.ttl#> .
 
 #
 # File/Entity Properties
@@ -46,7 +46,7 @@ dataprov:checksum
     rdfs:comment "SHA256 checksum of a file for integrity verification. Format: 'sha256:hexvalue'" ;
     rdfs:domain prov:Entity ;
     rdfs:range xsd:string ;
-    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/> .
+    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/dataprov.ttl#> .
 
 dataprov:format
     a owl:DatatypeProperty ;
@@ -54,7 +54,7 @@ dataprov:format
     rdfs:comment "File format or type (e.g., 'CSV', 'JSON', 'MP4')" ;
     rdfs:domain dataprov:DataFile ;
     rdfs:range xsd:string ;
-    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/> .
+    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/dataprov.ttl#> .
 
 dataprov:sizeBytes
     a owl:DatatypeProperty ;
@@ -62,7 +62,7 @@ dataprov:sizeBytes
     rdfs:comment "File size in bytes" ;
     rdfs:domain prov:Entity ;
     rdfs:range xsd:nonNegativeInteger ;
-    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/> .
+    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/dataprov.ttl#> .
 
 dataprov:createdAt
     a owl:DatatypeProperty ;
@@ -70,7 +70,7 @@ dataprov:createdAt
     rdfs:comment "ISO 8601 timestamp when the entity was originally created" ;
     rdfs:domain prov:Entity ;
     rdfs:range xsd:dateTime ;
-    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/> .
+    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/dataprov.ttl#> .
 
 dataprov:originalPath
     a owl:DatatypeProperty ;
@@ -78,7 +78,7 @@ dataprov:originalPath
     rdfs:comment "Original file path for bundled/inlined provenance files" ;
     rdfs:domain prov:Bundle ;
     rdfs:range xsd:string ;
-    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/> .
+    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/dataprov.ttl#> .
 
 dataprov:bundleChecksum
     a owl:DatatypeProperty ;
@@ -86,7 +86,7 @@ dataprov:bundleChecksum
     rdfs:comment "SHA256 checksum of a bundled provenance file" ;
     rdfs:domain prov:Bundle ;
     rdfs:range xsd:string ;
-    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/> .
+    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/dataprov.ttl#> .
 
 dataprov:externalPath
     a owl:DatatypeProperty ;
@@ -94,7 +94,7 @@ dataprov:externalPath
     rdfs:comment "File path to an external provenance file" ;
     rdfs:domain prov:Bundle ;
     rdfs:range xsd:string ;
-    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/> .
+    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/dataprov.ttl#> .
 
 #
 # Activity/Processing Properties
@@ -106,7 +106,7 @@ dataprov:operation
     rdfs:comment "Description of the operation or transformation performed by an activity" ;
     rdfs:domain prov:Activity ;
     rdfs:range xsd:string ;
-    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/> .
+    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/dataprov.ttl#> .
 
 dataprov:arguments
     a owl:DatatypeProperty ;
@@ -114,7 +114,7 @@ dataprov:arguments
     rdfs:comment "Command-line arguments or parameters used for the activity" ;
     rdfs:domain prov:Activity ;
     rdfs:range xsd:string ;
-    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/> .
+    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/dataprov.ttl#> .
 
 dataprov:outputLog
     a owl:DatatypeProperty ;
@@ -122,7 +122,7 @@ dataprov:outputLog
     rdfs:comment "Console or log output from the tool execution" ;
     rdfs:domain prov:Activity ;
     rdfs:range xsd:string ;
-    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/> .
+    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/dataprov.ttl#> .
 
 dataprov:warnings
     a owl:DatatypeProperty ;
@@ -130,7 +130,7 @@ dataprov:warnings
     rdfs:comment "Warning messages generated during the activity" ;
     rdfs:domain prov:Activity ;
     rdfs:range xsd:string ;
-    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/> .
+    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/dataprov.ttl#> .
 
 dataprov:drl
     a owl:DatatypeProperty ;
@@ -138,7 +138,7 @@ dataprov:drl
     rdfs:comment "Data Readiness Level (0-9) indicating the maturity/quality of the data. See: https://en.wikipedia.org/wiki/Data_readiness_level" ;
     rdfs:domain prov:Activity ;
     rdfs:range xsd:integer ;
-    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/> .
+    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/dataprov.ttl#> .
 
 #
 # Agent/Tool Properties
@@ -150,7 +150,7 @@ dataprov:toolName
     rdfs:comment "Name of the software tool or application" ;
     rdfs:domain prov:SoftwareAgent ;
     rdfs:range xsd:string ;
-    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/> .
+    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/dataprov.ttl#> .
 
 dataprov:toolVersion
     a owl:DatatypeProperty ;
@@ -158,7 +158,7 @@ dataprov:toolVersion
     rdfs:comment "Version identifier of the software tool" ;
     rdfs:domain prov:SoftwareAgent ;
     rdfs:range xsd:string ;
-    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/> .
+    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/dataprov.ttl#> .
 
 dataprov:toolSource
     a owl:DatatypeProperty ;
@@ -166,7 +166,7 @@ dataprov:toolSource
     rdfs:comment "Source, vendor, or organization that provided the tool" ;
     rdfs:domain prov:SoftwareAgent ;
     rdfs:range xsd:string ;
-    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/> .
+    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/dataprov.ttl#> .
 
 dataprov:user
     a owl:DatatypeProperty ;
@@ -174,7 +174,7 @@ dataprov:user
     rdfs:comment "Username of the person who executed the activity" ;
     rdfs:domain prov:Agent ;
     rdfs:range xsd:string ;
-    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/> .
+    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/dataprov.ttl#> .
 
 dataprov:hostname
     a owl:DatatypeProperty ;
@@ -182,7 +182,7 @@ dataprov:hostname
     rdfs:comment "Hostname of the machine where the activity was executed" ;
     rdfs:domain prov:Agent ;
     rdfs:range xsd:string ;
-    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/> .
+    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/dataprov.ttl#> .
 
 dataprov:agentType
     a owl:DatatypeProperty ;
@@ -190,7 +190,7 @@ dataprov:agentType
     rdfs:comment "Type of agent: 'human' or 'automated'" ;
     rdfs:domain prov:Agent ;
     rdfs:range xsd:string ;
-    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/> .
+    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/dataprov.ttl#> .
 
 dataprov:name
     a owl:DatatypeProperty ;
@@ -198,7 +198,7 @@ dataprov:name
     rdfs:comment "Name of a person, organization, or agent" ;
     rdfs:domain prov:Agent ;
     rdfs:range xsd:string ;
-    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/> .
+    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/dataprov.ttl#> .
 
 #
 # Environment Properties
@@ -210,7 +210,7 @@ dataprov:runtime
     rdfs:comment "Runtime environment name (e.g., 'Python', 'Node.js', 'Java')" ;
     rdfs:domain prov:SoftwareAgent ;
     rdfs:range xsd:string ;
-    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/> .
+    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/dataprov.ttl#> .
 
 dataprov:runtimeVersion
     a owl:DatatypeProperty ;
@@ -218,7 +218,7 @@ dataprov:runtimeVersion
     rdfs:comment "Version of the runtime environment" ;
     rdfs:domain prov:SoftwareAgent ;
     rdfs:range xsd:string ;
-    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/> .
+    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/dataprov.ttl#> .
 
 dataprov:platform
     a owl:DatatypeProperty ;
@@ -226,7 +226,7 @@ dataprov:platform
     rdfs:comment "Operating system platform (e.g., 'Linux', 'Windows', 'macOS')" ;
     rdfs:domain prov:SoftwareAgent ;
     rdfs:range xsd:string ;
-    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/> .
+    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/dataprov.ttl#> .
 
 dataprov:machine
     a owl:DatatypeProperty ;
@@ -234,7 +234,7 @@ dataprov:machine
     rdfs:comment "Machine architecture (e.g., 'x86_64', 'arm64')" ;
     rdfs:domain prov:SoftwareAgent ;
     rdfs:range xsd:string ;
-    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/> .
+    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/dataprov.ttl#> .
 
 dataprov:processor
     a owl:DatatypeProperty ;
@@ -242,7 +242,7 @@ dataprov:processor
     rdfs:comment "CPU processor information" ;
     rdfs:domain prov:SoftwareAgent ;
     rdfs:range xsd:string ;
-    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/> .
+    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/dataprov.ttl#> .
 
 #
 # Relationship Properties
@@ -254,4 +254,4 @@ dataprov:hadProvenance
     rdfs:comment "Links to a provenance file or bundle documenting the history of an entity" ;
     rdfs:domain prov:Usage ;
     rdfs:range [ owl:unionOf ( prov:Bundle xsd:anyURI ) ] ;
-    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/> .
+    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/dataprov.ttl#> .

@@ -1,127 +1,127 @@
 {
   "@context": {
-    "@vocab": "https://ri-se.github.io/dataprov/ontology/",
+    "@vocab": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#",
     "prov": "http://www.w3.org/ns/prov#",
     "xsd": "http://www.w3.org/2001/XMLSchema#",
     "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
     "owl": "http://www.w3.org/2002/07/owl#",
 
     "RootEntity": {
-      "@id": "https://ri-se.github.io/dataprov/ontology/RootEntity",
+      "@id": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#RootEntity",
       "@type": "@id"
     },
     "DataFile": {
-      "@id": "https://ri-se.github.io/dataprov/ontology/DataFile",
+      "@id": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#DataFile",
       "@type": "@id"
     },
 
     "checksum": {
-      "@id": "https://ri-se.github.io/dataprov/ontology/checksum",
+      "@id": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#checksum",
       "@type": "xsd:string"
     },
     "format": {
-      "@id": "https://ri-se.github.io/dataprov/ontology/format",
+      "@id": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#format",
       "@type": "xsd:string"
     },
     "sizeBytes": {
-      "@id": "https://ri-se.github.io/dataprov/ontology/sizeBytes",
+      "@id": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#sizeBytes",
       "@type": "xsd:nonNegativeInteger"
     },
     "createdAt": {
-      "@id": "https://ri-se.github.io/dataprov/ontology/createdAt",
+      "@id": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#createdAt",
       "@type": "xsd:dateTime"
     },
     "originalPath": {
-      "@id": "https://ri-se.github.io/dataprov/ontology/originalPath",
+      "@id": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#originalPath",
       "@type": "xsd:string"
     },
     "bundleChecksum": {
-      "@id": "https://ri-se.github.io/dataprov/ontology/bundleChecksum",
+      "@id": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#bundleChecksum",
       "@type": "xsd:string"
     },
     "externalPath": {
-      "@id": "https://ri-se.github.io/dataprov/ontology/externalPath",
+      "@id": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#externalPath",
       "@type": "xsd:string"
     },
 
     "operation": {
-      "@id": "https://ri-se.github.io/dataprov/ontology/operation",
+      "@id": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#operation",
       "@type": "xsd:string"
     },
     "arguments": {
-      "@id": "https://ri-se.github.io/dataprov/ontology/arguments",
+      "@id": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#arguments",
       "@type": "xsd:string"
     },
     "outputLog": {
-      "@id": "https://ri-se.github.io/dataprov/ontology/outputLog",
+      "@id": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#outputLog",
       "@type": "xsd:string"
     },
     "warnings": {
-      "@id": "https://ri-se.github.io/dataprov/ontology/warnings",
+      "@id": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#warnings",
       "@type": "xsd:string"
     },
     "drl": {
-      "@id": "https://ri-se.github.io/dataprov/ontology/drl",
+      "@id": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#drl",
       "@type": "xsd:integer"
     },
 
     "toolName": {
-      "@id": "https://ri-se.github.io/dataprov/ontology/toolName",
+      "@id": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#toolName",
       "@type": "xsd:string"
     },
     "toolVersion": {
-      "@id": "https://ri-se.github.io/dataprov/ontology/toolVersion",
+      "@id": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#toolVersion",
       "@type": "xsd:string"
     },
     "toolSource": {
-      "@id": "https://ri-se.github.io/dataprov/ontology/toolSource",
+      "@id": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#toolSource",
       "@type": "xsd:string"
     },
     "user": {
-      "@id": "https://ri-se.github.io/dataprov/ontology/user",
+      "@id": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#user",
       "@type": "xsd:string"
     },
     "hostname": {
-      "@id": "https://ri-se.github.io/dataprov/ontology/hostname",
+      "@id": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#hostname",
       "@type": "xsd:string"
     },
     "agentType": {
-      "@id": "https://ri-se.github.io/dataprov/ontology/agentType",
+      "@id": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#agentType",
       "@type": "xsd:string"
     },
     "name": {
-      "@id": "https://ri-se.github.io/dataprov/ontology/name",
+      "@id": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#name",
       "@type": "xsd:string"
     },
 
     "runtime": {
-      "@id": "https://ri-se.github.io/dataprov/ontology/runtime",
+      "@id": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#runtime",
       "@type": "xsd:string"
     },
     "runtimeVersion": {
-      "@id": "https://ri-se.github.io/dataprov/ontology/runtimeVersion",
+      "@id": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#runtimeVersion",
       "@type": "xsd:string"
     },
     "platform": {
-      "@id": "https://ri-se.github.io/dataprov/ontology/platform",
+      "@id": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#platform",
       "@type": "xsd:string"
     },
     "machine": {
-      "@id": "https://ri-se.github.io/dataprov/ontology/machine",
+      "@id": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#machine",
       "@type": "xsd:string"
     },
     "processor": {
-      "@id": "https://ri-se.github.io/dataprov/ontology/processor",
+      "@id": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#processor",
       "@type": "xsd:string"
     },
 
     "hadProvenance": {
-      "@id": "https://ri-se.github.io/dataprov/ontology/hadProvenance",
+      "@id": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#hadProvenance",
       "@type": "@id"
     },
 
     "metadata": {
-      "@id": "https://ri-se.github.io/dataprov/ontology/metadata",
+      "@id": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#metadata",
       "@type": "@id"
     }
   }
