@@ -63,7 +63,7 @@ from pathlib import Path
 from typing import Any
 
 DATAPROV_VERSION = "3.0"
-DATAPROV_NS = "https://github.com/RI-SE/dataprov/ontology/"
+DATAPROV_NS = "https://ri-se.github.io/dataprov/ontology/"
 PROV_NS = "http://www.w3.org/ns/prov#"
 XSD_NS = "http://www.w3.org/2001/XMLSchema#"
 

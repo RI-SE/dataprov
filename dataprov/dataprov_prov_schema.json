@@ -12,7 +12,7 @@
       "properties": {
         "dataprov": {
           "type": "string",
-          "const": "https://github.com/RI-SE/dataprov/ontology/"
+          "const": "https://ri-se.github.io/dataprov/ontology/"
         },
         "prov": {
           "type": "string",
