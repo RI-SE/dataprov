@@ -5,6 +5,7 @@
 # dataprov
 
 [![CI](https://github.com/RI-SE/dataprov/actions/workflows/ci.yml/badge.svg)](https://github.com/RI-SE/dataprov/actions/workflows/ci.yml)
+[![GitHub Release](https://img.shields.io/github/v/release/RI-SE/dataprov)](https://github.com/RI-SE/dataprov/releases/latest)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
@@ -33,28 +34,62 @@ A lightweight Python library for tracking data provenance through processing pip
 
 ## Contents
 
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Usage Examples](#usage-examples)
-  - [Execution Timing](#execution-timing)
-  - [Provenance File Inlining](#provenance-file-inlining)
-  - [Agent Tracking](#agent-tracking)
-  - [Attribution (wasAttributedTo)](#attribution-wasattributedto)
-  - [Custom Ontologies](#custom-ontologies)
-  - [Environment Capture](#environment-capture)
-  - [Enhanced Queries](#enhanced-queries)
-  - [Visualization](#visualization)
-- [CLI Tools](#cli-tools)
-- [API Reference](#api-reference)
-- [Data Readiness Levels (DRL)](#data-readiness-levels-drl)
-- [W3C PROV-JSON Format](#w3c-prov-json-format)
-- [Dataprov Ontology](#dataprov-ontology)
-- [Use Case Examples](#use-case-examples)
-- [Comparison with Other Provenance Systems](#comparison-with-other-provenance-systems)
-- [Project Structure](#project-structure)
-- [Testing](#testing)
-- [Schema Version](#schema-version)
-- [Acknowledgement](#acknowledgement)
+- [dataprov](#dataprov)
+  - [Features](#features)
+  - [Contents](#contents)
+  - [Installation](#installation)
+    - [Using dataprov in Your Project](#using-dataprov-in-your-project)
+    - [Local Development Install](#local-development-install)
+  - [Quick Start](#quick-start)
+    - [Creating a Provenance Chain](#creating-a-provenance-chain)
+    - [Loading and Extending Chains](#loading-and-extending-chains)
+    - [Access the W3C PROV-JSON schema](#access-the-w3c-prov-json-schema)
+  - [Usage Examples](#usage-examples)
+    - [Execution Timing](#execution-timing)
+    - [Provenance File Inlining](#provenance-file-inlining)
+    - [Agent Tracking](#agent-tracking)
+    - [Attribution (wasAttributedTo)](#attribution-wasattributedto)
+      - [Basic Usage](#basic-usage)
+      - [Multiple Files](#multiple-files)
+      - [Automation Features](#automation-features)
+      - [Use Case Example](#use-case-example)
+    - [Custom Ontologies](#custom-ontologies)
+      - [Define Custom Namespaces](#define-custom-namespaces)
+      - [Add Custom Properties with Target Prefixes](#add-custom-properties-with-target-prefixes)
+      - [Add Custom Properties with add\_attribution()](#add-custom-properties-with-add_attribution)
+      - [Add Top-Level Custom Metadata](#add-top-level-custom-metadata)
+      - [Creating Your Own Ontology](#creating-your-own-ontology)
+    - [Environment Capture](#environment-capture)
+    - [Enhanced Queries](#enhanced-queries)
+    - [Precise Input-Output Mapping](#precise-input-output-mapping)
+    - [Visualization](#visualization)
+  - [CLI Tools](#cli-tools)
+    - [dataprov-new](#dataprov-new)
+    - [dataprov-visualize](#dataprov-visualize)
+    - [dataprov-add-attribution](#dataprov-add-attribution)
+    - [dataprov-report](#dataprov-report)
+  - [API Reference](#api-reference)
+    - [ProvenanceChain Class](#provenancechain-class)
+      - [Class Methods](#class-methods)
+      - [Instance Methods](#instance-methods)
+  - [Data Readiness Levels (DRL)](#data-readiness-levels-drl)
+  - [W3C PROV-JSON Format](#w3c-prov-json-format)
+    - [Structure Overview](#structure-overview)
+    - [Example PROV-JSON File](#example-prov-json-file)
+    - [PROV Bundles](#prov-bundles)
+  - [Dataprov Ontology](#dataprov-ontology)
+    - [Key Features](#key-features)
+    - [Core Properties by Domain](#core-properties-by-domain)
+    - [Ontology Documentation](#ontology-documentation)
+  - [Use Case Examples](#use-case-examples)
+    - [Video Processing Pipelines](#video-processing-pipelines)
+    - [Linking Multiple Provenance Chains](#linking-multiple-provenance-chains)
+  - [Comparison with Other Provenance Systems](#comparison-with-other-provenance-systems)
+    - [W3C PROV-JSON Compatibility](#w3c-prov-json-compatibility)
+  - [Project Structure](#project-structure)
+  - [Testing](#testing)
+  - [Schema Version](#schema-version)
+  - [Acknowledgement](#acknowledgement)
 
 ## Installation
 
@@ -96,7 +131,7 @@ dataprov>=3.0.0
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/RI-SE/dataprov.git
 cd dataprov
 
 # Install package with development dependencies using uv
@@ -107,7 +142,7 @@ uv sync --dev
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/RI-SE/dataprov.git
 cd dataprov
 
 # Create and activate virtual environment
@@ -770,6 +805,12 @@ dataprov-visualize provenance.json | dot -Tpng -o provenance.png
 
 # Generate SVG
 dataprov-visualize provenance.json | dot -Tsvg -o provenance.svg
+
+# Hide nested provenance bundles (show only main chain)
+dataprov-visualize provenance.json --flatten-bundles | dot -Tpng -o simple.png
+
+# Normalize paths to handle path prefix mismatches between steps
+dataprov-visualize provenance.json --normalize-paths | dot -Tpng -o normalized.png
 ```
 
 ### dataprov-add-attribution
@@ -811,6 +852,9 @@ Generate HTML report:
 ```bash
 # Generate HTML report
 dataprov-report provenance.json -o report.html
+
+# Hide nested provenance bundles (show only main chain)
+dataprov-report provenance.json --flatten-bundles -o simple_report.html
 ```
 
 The HTML report includes:
@@ -819,6 +863,7 @@ The HTML report includes:
 - Agent/user information per step
 - Environment information per step
 - File checksums and sizes
+- Nested provenance bundles for inputs (showing how input files were created)
 - Interactive styling
 
 ## API Reference
@@ -960,9 +1005,12 @@ Validate chain integrity and schema compliance.
 
 Returns: `tuple` - `(is_valid, list_of_errors)`
 
-**`to_dot()`**
+**`to_dot(include_bundles=True, normalize_paths=False)`**
 
 Generate GraphViz DOT format visualization.
+
+- `include_bundles` (bool): If True (default), render nested provenance bundles as subgraphs
+- `normalize_paths` (bool): If True, match entities by filename when full paths don't match (helps with path prefix mismatches between processing steps)
 
 Returns: `str` - DOT format graph
 

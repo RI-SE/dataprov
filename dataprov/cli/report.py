@@ -12,11 +12,86 @@ from datetime import datetime
 from pathlib import Path
 
 
-def generate_html_report(chain) -> str:
+def _render_nested_bundle(bundle_id: str, bundle_content: dict) -> str:
+    """Render a nested provenance bundle as HTML.
+
+    Args:
+        bundle_id: The bundle identifier
+        bundle_content: The bundle's PROV-JSON content
+
+    Returns:
+        str: HTML snippet for the nested bundle
+    """
+    parts = []
+    parts.append(f'<div class="nested-bundle">\n')
+    parts.append(f"<h4>Nested Provenance: {bundle_id}</h4>\n")
+
+    # Get activities sorted by step number
+    activities = []
+    for act_id, act in bundle_content.get("activity", {}).items():
+        step_num = 0
+        if "_" in act_id:
+            try:
+                step_num = int(act_id.split("_")[-1])
+            except ValueError:
+                pass
+
+        # Find agent info
+        tool_name = "unknown"
+        for assoc in bundle_content.get("wasAssociatedWith", {}).values():
+            if assoc.get("prov:activity") == act_id:
+                agent_id = assoc.get("prov:agent")
+                agent = bundle_content.get("agent", {}).get(agent_id, {})
+                tool_name = agent.get(
+                    "dataprov:name", agent.get("dataprov:toolName", "unknown")
+                )
+                break
+
+        operation = act.get("dataprov:operation", "unknown")
+        activities.append((step_num, act_id, tool_name, operation))
+
+    activities.sort(key=lambda x: x[0])
+
+    # Find inputs and outputs for each activity
+    for step_num, act_id, tool_name, operation in activities:
+        parts.append('<div class="nested-step">\n')
+        parts.append(
+            f'<div class="nested-step-title">{tool_name}: {operation}</div>\n'
+        )
+
+        # Find inputs (used relationships)
+        inputs = []
+        for usage in bundle_content.get("used", {}).values():
+            if usage.get("prov:activity") == act_id:
+                ent_id = usage.get("prov:entity", "")
+                path = ent_id.replace("entity:", "")
+                inputs.append(Path(path).name)
+
+        # Find outputs (wasGeneratedBy relationships)
+        outputs = []
+        for gen in bundle_content.get("wasGeneratedBy", {}).values():
+            if gen.get("prov:activity") == act_id:
+                ent_id = gen.get("prov:entity", "")
+                path = ent_id.replace("entity:", "")
+                outputs.append(Path(path).name)
+
+        if inputs:
+            parts.append(f'<div class="file-meta">Inputs: {", ".join(inputs)}</div>\n')
+        if outputs:
+            parts.append(f'<div class="file-meta">Outputs: {", ".join(outputs)}</div>\n')
+
+        parts.append("</div>\n")
+
+    parts.append("</div>\n")
+    return "".join(parts)
+
+
+def generate_html_report(chain, include_bundles: bool = True) -> str:
     """Generate an HTML report from provenance chain.
 
     Args:
         chain: ProvenanceChain instance
+        include_bundles: If True, show nested provenance bundles for inputs
 
     Returns:
         str: HTML report content
@@ -183,6 +258,39 @@ def generate_html_report(chain) -> str:
             color: #666;
             font-size: 0.9em;
         }}
+        .provenance-info {{
+            background-color: #fff8e1;
+            border-left: 3px solid #ffc107;
+            padding: 8px;
+            margin: 5px 0 5px 20px;
+            font-size: 0.85em;
+        }}
+        .provenance-info .prov-label {{
+            font-weight: bold;
+            color: #f57c00;
+        }}
+        .nested-bundle {{
+            background-color: #fffde7;
+            border: 1px solid #fff59d;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 10px 0 10px 20px;
+        }}
+        .nested-bundle h4 {{
+            margin: 0 0 10px 0;
+            color: #f57c00;
+            font-size: 1em;
+        }}
+        .nested-step {{
+            background-color: white;
+            border-left: 3px solid #ffb74d;
+            padding: 10px;
+            margin: 8px 0;
+        }}
+        .nested-step-title {{
+            font-weight: bold;
+            color: #ff9800;
+        }}
         .footer {{
             text-align: center;
             margin-top: 40px;
@@ -344,6 +452,30 @@ def generate_html_report(chain) -> str:
                     html_parts.append(
                         f'                <div class="file-meta">Checksum: {checksum}</div>\n'
                     )
+
+                # Show provenance info for this input if available
+                prov_file = inp.get("provenance_file")
+                if prov_file and include_bundles:
+                    prov_checksum = inp.get("provenance_file_checksum", "")
+                    html_parts.append('            <div class="provenance-info">\n')
+                    html_parts.append(
+                        f'                <span class="prov-label">Provenance:</span> {prov_file}\n'
+                    )
+                    if prov_checksum:
+                        html_parts.append(
+                            f'                <div class="file-meta">Checksum: {prov_checksum}</div>\n'
+                        )
+
+                    # If bundle data is available, render nested steps
+                    if prov_file.startswith("bundle:"):
+                        bundle_content = chain.data.get("bundle", {}).get(prov_file, {})
+                        if bundle_content:
+                            html_parts.append(
+                                _render_nested_bundle(prov_file, bundle_content)
+                            )
+
+                    html_parts.append("            </div>\n")
+
                 html_parts.append("            </div>\n")
             html_parts.append("        </div>\n")
 
@@ -433,6 +565,12 @@ Example:
         "-o", "--output", help="Output HTML file (default: stdout)", default=None
     )
 
+    parser.add_argument(
+        "--flatten-bundles",
+        action="store_true",
+        help="Hide nested provenance bundles (only show main chain)",
+    )
+
     args = parser.parse_args()
 
     # Validate input file
@@ -452,7 +590,9 @@ Example:
 
     # Generate HTML report
     try:
-        html_report = generate_html_report(chain)
+        html_report = generate_html_report(
+            chain, include_bundles=not args.flatten_bundles
+        )
     except Exception as e:
         print(f"Error generating HTML report: {e}", file=sys.stderr)
         return 1
