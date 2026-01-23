@@ -1,15 +1,15 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
+  # Trigger when a release is published via GitHub UI
+  release:
+    types: [published]
 
 permissions:
   contents: write
 
 jobs:
-  release:
+  build-and-attach:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,28 +27,11 @@ jobs:
       - name: Build package
         run: python -m build
 
-      - name: Extract version from tag
-        id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
-      - name: Extract changelog for this version
-        id: changelog
-        run: |
-          # Extract changelog section for this version
-          VERSION=${{ steps.get_version.outputs.VERSION }}
-          # Get content between this version header and next version header (or EOF)
-          awk "/^## \[${VERSION}\]/{flag=1; next} /^## \[/{flag=0} flag" CHANGELOG.md > release_notes.md
-          echo "Release notes:"
-          cat release_notes.md
-
-      - name: Create GitHub Release
+      - name: Upload release artifacts
         uses: softprops/action-gh-release@v1
         with:
-          body_path: release_notes.md
           files: |
             dist/*
-          draft: false
-          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
