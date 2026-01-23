@@ -7,6 +7,7 @@ Usage:
 """
 
 import argparse
+import contextlib
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -23,7 +24,7 @@ def _render_nested_bundle(bundle_id: str, bundle_content: dict) -> str:
         str: HTML snippet for the nested bundle
     """
     parts = []
-    parts.append(f'<div class="nested-bundle">\n')
+    parts.append('<div class="nested-bundle">\n')
     parts.append(f"<h4>Nested Provenance: {bundle_id}</h4>\n")
 
     # Get activities sorted by step number
@@ -31,10 +32,8 @@ def _render_nested_bundle(bundle_id: str, bundle_content: dict) -> str:
     for act_id, act in bundle_content.get("activity", {}).items():
         step_num = 0
         if "_" in act_id:
-            try:
+            with contextlib.suppress(ValueError):
                 step_num = int(act_id.split("_")[-1])
-            except ValueError:
-                pass
 
         # Find agent info
         tool_name = "unknown"
@@ -53,11 +52,9 @@ def _render_nested_bundle(bundle_id: str, bundle_content: dict) -> str:
     activities.sort(key=lambda x: x[0])
 
     # Find inputs and outputs for each activity
-    for step_num, act_id, tool_name, operation in activities:
+    for _step_num, act_id, tool_name, operation in activities:
         parts.append('<div class="nested-step">\n')
-        parts.append(
-            f'<div class="nested-step-title">{tool_name}: {operation}</div>\n'
-        )
+        parts.append(f'<div class="nested-step-title">{tool_name}: {operation}</div>\n')
 
         # Find inputs (used relationships)
         inputs = []
@@ -78,7 +75,9 @@ def _render_nested_bundle(bundle_id: str, bundle_content: dict) -> str:
         if inputs:
             parts.append(f'<div class="file-meta">Inputs: {", ".join(inputs)}</div>\n')
         if outputs:
-            parts.append(f'<div class="file-meta">Outputs: {", ".join(outputs)}</div>\n')
+            parts.append(
+                f'<div class="file-meta">Outputs: {", ".join(outputs)}</div>\n'
+            )
 
         parts.append("</div>\n")
 
