@@ -5,6 +5,7 @@
 # dataprov
 
 [![CI](https://github.com/RI-SE/dataprov/actions/workflows/ci.yml/badge.svg)](https://github.com/RI-SE/dataprov/actions/workflows/ci.yml)
+[![PyPI version](https://img.shields.io/pypi/v/dataprov)](https://pypi.org/project/dataprov/)
 [![GitHub Release](https://img.shields.io/github/v/release/RI-SE/dataprov)](https://github.com/RI-SE/dataprov/releases/latest)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -96,8 +97,6 @@ A lightweight Python library for tracking data provenance through processing pip
 ### Using dataprov in Your Project
 
 **Install from PyPI:**
-
-**TBD: Not published on PyPi yet**
 
 ```bash
 pip install dataprov

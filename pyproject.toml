@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dataprov"
-version = "3.0.1"
+version = "3.0.2"
 description = "W3C PROV-compliant data provenance tracking library for recording processing chains"
 readme = "README.md"
 license = {file = "LICENSE"}
