@@ -39,6 +39,19 @@ Examples:
         default=None,
     )
 
+    parser.add_argument(
+        "--flatten-bundles",
+        action="store_true",
+        help="Hide nested bundles (only show main chain)",
+    )
+
+    parser.add_argument(
+        "--normalize-paths",
+        action="store_true",
+        help="Match entities by filename when full paths don't match "
+        "(helps with path prefix mismatches between processing steps)",
+    )
+
     args = parser.parse_args()
 
     # Validate input file
@@ -58,7 +71,10 @@ Examples:
 
     # Generate DOT graph
     try:
-        dot_graph = chain.to_dot()
+        dot_graph = chain.to_dot(
+            include_bundles=not args.flatten_bundles,
+            normalize_paths=args.normalize_paths,
+        )
     except Exception as e:
         print(f"Error generating DOT graph: {e}", file=sys.stderr)
         return 1

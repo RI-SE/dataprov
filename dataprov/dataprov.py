@@ -1512,34 +1512,65 @@ class ProvenanceChain:
 
         return (len(errors) == 0, errors)
 
-    def to_dot(self) -> str:
+    def to_dot(
+        self, include_bundles: bool = True, normalize_paths: bool = False
+    ) -> str:
         """Generate GraphViz DOT format representation of the provenance chain.
+
+        Args:
+            include_bundles: If True, render nested bundles as subgraphs
+            normalize_paths: If True, match entities by filename when full paths
+                don't match (helps with path prefix mismatches between steps)
 
         Returns:
             str: DOT format graph representation
         """
+
+        def escape_dot(s: str) -> str:
+            """Escape string for DOT format."""
+            return s.replace("\\", "\\\\").replace('"', '\\"')
+
+        def node_id(path: str) -> str:
+            """Generate node ID, optionally normalizing paths."""
+            if normalize_paths:
+                return Path(path).name
+            return path
+
         lines = ["digraph provenance {"]
         lines.append("  rankdir=LR;")
         lines.append('  node [fontname="Arial"];')
         lines.append('  edge [fontname="Arial"];')
         lines.append("")
 
-        # Collect all unique files
+        # Collect all unique files from main chain
         files = set()
         for entity_id, entity in self.data.get("entity", {}).items():
             if entity.get("prov:type") == "dataprov:DataFile":
                 file_path = entity_id.replace("entity:", "")
                 files.add(file_path)
 
-        # Add file nodes
+        # Build path normalization map if enabled
+        # Maps normalized name -> set of full paths
+        path_map: dict[str, set[str]] = {}
+        if normalize_paths:
+            for f in files:
+                name = Path(f).name
+                if name not in path_map:
+                    path_map[name] = set()
+                path_map[name].add(f)
+
+        # Add file nodes (main chain)
         lines.append("  // File nodes")
+        added_nodes = set()
         for file_path in sorted(files):
+            nid = node_id(file_path)
+            if nid in added_nodes:
+                continue
+            added_nodes.add(nid)
             label = Path(file_path).name
-            # Escape quotes and backslashes for DOT format
-            escaped_path = file_path.replace("\\", "\\\\").replace('"', '\\"')
-            escaped_label = label.replace("\\", "\\\\").replace('"', '\\"')
             lines.append(
-                f'  "{escaped_path}" [shape=box, label="{escaped_label}", style=filled, fillcolor=skyblue];'
+                f'  "{escape_dot(nid)}" [shape=box, label="{escape_dot(label)}", '
+                f"style=filled, fillcolor=skyblue];"
             )
 
         lines.append("")
@@ -1552,36 +1583,156 @@ class ProvenanceChain:
             tool_name = step["tool"]["name"]
             operation = step["operation"]
 
-            # Escape for DOT format
-            escaped_tool = tool_name.replace("\\", "\\\\").replace('"', '\\"')
-            escaped_op = operation.replace("\\", "\\\\").replace('"', '\\"')
-
             # Include DRL if available
             drl_info = ""
             if "drl" in step:
                 drl_info = f"\\nDRL: {step['drl']}"
 
-            label = f"{escaped_tool}\\n{escaped_op}{drl_info}"
+            label = f"{escape_dot(tool_name)}\\n{escape_dot(operation)}{drl_info}"
             lines.append(
-                f'  "step_{step_id}" [shape=ellipse, label="{label}", style=filled, fillcolor=palegreen];'
+                f'  "step_{step_id}" [shape=ellipse, label="{label}", '
+                f"style=filled, fillcolor=palegreen];"
             )
 
         lines.append("")
         lines.append("  // Edges (data flow)")
 
-        # Add edges
+        # Add edges from main chain
         for step in steps:
             step_id = step["step_id"]
 
             # Input edges
             for inp in step["inputs"]:
-                escaped_path = inp["path"].replace("\\", "\\\\").replace('"', '\\"')
-                lines.append(f'  "{escaped_path}" -> "step_{step_id}";')
+                nid = node_id(inp["path"])
+                lines.append(f'  "{escape_dot(nid)}" -> "step_{step_id}";')
 
             # Output edges
             for out in step["outputs"]:
-                escaped_path = out["path"].replace("\\", "\\\\").replace('"', '\\"')
-                lines.append(f'  "step_{step_id}" -> "{escaped_path}";')
+                nid = node_id(out["path"])
+                lines.append(f'  "step_{step_id}" -> "{escape_dot(nid)}";')
+
+        # Add bundles as subgraphs if requested
+        if include_bundles:
+            bundles = self.data.get("bundle", {})
+            if bundles:
+                lines.append("")
+                lines.append("  // Nested provenance bundles")
+
+                for bundle_id, bundle_content in bundles.items():
+                    # Create subgraph cluster for bundle
+                    cluster_name = bundle_id.replace(":", "_").replace("-", "_")
+                    lines.append("")
+                    lines.append(f"  subgraph cluster_{cluster_name} {{")
+                    lines.append(f'    label="{escape_dot(bundle_id)}";')
+                    lines.append("    style=filled;")
+                    lines.append("    fillcolor=lightyellow;")
+                    lines.append('    fontname="Arial";')
+                    lines.append("")
+
+                    # Add entities within bundle
+                    bundle_files = set()
+                    for ent_id, ent in bundle_content.get("entity", {}).items():
+                        if ent.get("prov:type") == "dataprov:DataFile":
+                            file_path = ent_id.replace("entity:", "")
+                            bundle_files.add(file_path)
+
+                    for file_path in sorted(bundle_files):
+                        label = Path(file_path).name
+                        # Prefix node ID with bundle to avoid collisions
+                        b_node_id = f"{bundle_id}:{file_path}"
+                        lines.append(
+                            f'    "{escape_dot(b_node_id)}" [shape=box, '
+                            f'label="{escape_dot(label)}", style=filled, '
+                            f"fillcolor=lightblue];"
+                        )
+
+                    # Add activity nodes within bundle
+                    for act_id, act in bundle_content.get("activity", {}).items():
+                        tool_name = "unknown"
+                        operation = act.get("dataprov:operation", "unknown")
+
+                        # Find agent for tool name
+                        for assoc in bundle_content.get(
+                            "wasAssociatedWith", {}
+                        ).values():
+                            if assoc.get("prov:activity") == act_id:
+                                agent_id = assoc.get("prov:agent")
+                                agent = bundle_content.get("agent", {}).get(
+                                    agent_id, {}
+                                )
+                                # Try both attribute names (toolName is used in some formats)
+                                tool_name = agent.get(
+                                    "dataprov:name",
+                                    agent.get("dataprov:toolName", "unknown"),
+                                )
+                                break
+
+                        b_act_id = f"{bundle_id}:{act_id}"
+                        label = f"{escape_dot(tool_name)}\\n{escape_dot(operation)}"
+                        lines.append(
+                            f'    "{escape_dot(b_act_id)}" [shape=ellipse, '
+                            f'label="{label}", style=filled, fillcolor=lightgreen];'
+                        )
+
+                    lines.append("  }")
+
+                    # Add edges within bundle (outside subgraph definition)
+                    lines.append(f"  // Edges for {bundle_id}")
+                    for usage in bundle_content.get("used", {}).values():
+                        act_id = usage.get("prov:activity")
+                        ent_id = usage.get("prov:entity")
+                        if act_id and ent_id:
+                            b_act_id = f"{bundle_id}:{act_id}"
+                            b_ent_id = f"{bundle_id}:{ent_id.replace('entity:', '')}"
+                            lines.append(
+                                f'  "{escape_dot(b_ent_id)}" -> '
+                                f'"{escape_dot(b_act_id)}";'
+                            )
+
+                    for gen in bundle_content.get("wasGeneratedBy", {}).values():
+                        ent_id = gen.get("prov:entity")
+                        act_id = gen.get("prov:activity")
+                        if act_id and ent_id:
+                            b_act_id = f"{bundle_id}:{act_id}"
+                            b_ent_id = f"{bundle_id}:{ent_id.replace('entity:', '')}"
+                            lines.append(
+                                f'  "{escape_dot(b_act_id)}" -> '
+                                f'"{escape_dot(b_ent_id)}";'
+                            )
+
+                # Add hadProvenance edges (dashed, connecting main chain to bundles)
+                lines.append("")
+                lines.append("  // Provenance reference edges")
+                for usage in self.data.get("used", {}).values():
+                    prov_ref = usage.get("dataprov:hadProvenance")
+                    if prov_ref and prov_ref.startswith("bundle:"):
+                        # Get the entity this usage refers to
+                        ent_id = usage.get("prov:entity")
+                        if ent_id:
+                            ent_path = ent_id.replace("entity:", "")
+                            nid = node_id(ent_path)
+
+                            # Find a representative node in the bundle to connect to
+                            bundle_content = bundles.get(prov_ref, {})
+                            # Find output entity in bundle (last generated file)
+                            bundle_outputs = []
+                            for gen in bundle_content.get(
+                                "wasGeneratedBy", {}
+                            ).values():
+                                out_ent = gen.get("prov:entity")
+                                if out_ent:
+                                    bundle_outputs.append(
+                                        out_ent.replace("entity:", "")
+                                    )
+
+                            if bundle_outputs:
+                                # Connect to the last output of the bundle
+                                target = f"{prov_ref}:{bundle_outputs[-1]}"
+                                lines.append(
+                                    f'  "{escape_dot(target)}" -> '
+                                    f'"{escape_dot(nid)}" [style=dashed, '
+                                    f'color=gray, label="provenance"];'
+                                )
 
         lines.append("}")
         return "\n".join(lines)
