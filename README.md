@@ -152,7 +152,7 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -e ".[dev]"
 ```
 
-**Note**: This package has no external runtime dependencies (uses only Python standard library). Development dependencies (pytest, pytest-cov) are only needed for running tests.
+**Note**: This package has no external runtime dependencies (uses only Python standard library). Development dependencies (pytest, pytest-cov) are only needed for running tests. **Python >= 3.10 is required for installing the development dependencies.**
 
 ## Quick Start
 
