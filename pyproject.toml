@@ -44,6 +44,7 @@ dev = [
 
 [project.scripts]
 dataprov-new = "dataprov.cli.newprovchain:main"
+dataprov-add = "dataprov.cli.addstep:main"
 dataprov-add-attribution = "dataprov.cli.addattribution:main"
 dataprov-visualize = "dataprov.cli.visualize:main"
 dataprov-report = "dataprov.cli.report:main"
