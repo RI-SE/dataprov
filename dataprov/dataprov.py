@@ -919,7 +919,7 @@ class ProvenanceChain:
 
         # Process output entities
         for i, (file_path, file_format) in enumerate(
-            zip(outputs, output_formats, strict=True)
+            zip(outputs, output_formats)
         ):
             entity_id = f"entity:{file_path}"
 
