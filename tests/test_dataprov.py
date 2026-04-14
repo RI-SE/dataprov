@@ -2875,3 +2875,546 @@ class TestCustomNamespaces:
                     "invalidkey": "value"  # missing namespace prefix
                 },
             )
+
+
+class TestCLIAddStep:
+    """Tests for the dataprov-add CLI tool."""
+
+    @pytest.fixture
+    def prov_file(self, tmp_path):
+        """Create a minimal provenance chain file for CLI tests."""
+        chain = ProvenanceChain.create(
+            entity_id="cli_test_entity",
+            initial_source="/test/source/",
+        )
+        filepath = tmp_path / "prov.json"
+        chain.save(str(filepath))
+        return filepath
+
+    def _run_main(self, argv):
+        """Run dataprov-add main() with given argv list."""
+        import sys
+
+        from dataprov.cli.addstep import main
+
+        old_argv = sys.argv
+        sys.argv = ["dataprov-add"] + argv
+        try:
+            return main()
+        finally:
+            sys.argv = old_argv
+
+    def test_add_basic_step(self, prov_file, tmp_path, sample_file):
+        """Test adding a basic processing step via CLI."""
+        result = self._run_main(
+            [
+                "-p",
+                str(prov_file),
+                "--started-at",
+                "2024-10-15T11:00:00Z",
+                "--ended-at",
+                "2024-10-15T11:05:30Z",
+                "--tool-name",
+                "my_tool",
+                "--tool-version",
+                "1.0",
+                "--operation",
+                "processing",
+                "-i",
+                str(sample_file),
+                "--input-formats",
+                "TXT",
+                "--outputs",
+                str(sample_file),
+                "--output-formats",
+                "TXT",
+            ]
+        )
+
+        assert result == 0
+        chain = ProvenanceChain.load(str(prov_file))
+        assert len(chain.get_steps()) == 1
+        step = chain.get_steps()[0]
+        assert step["tool"]["name"] == "my_tool"
+        assert step["tool"]["version"] == "1.0"
+        assert step["operation"] == "processing"
+
+    def test_add_step_with_optional_fields(self, prov_file, sample_file):
+        """Test adding a step with optional metadata fields."""
+        result = self._run_main(
+            [
+                "-p",
+                str(prov_file),
+                "--started-at",
+                "2024-10-15T11:00:00Z",
+                "--ended-at",
+                "2024-10-15T11:05:30Z",
+                "--tool-name",
+                "my_tool",
+                "--tool-version",
+                "2.0",
+                "--operation",
+                "calibration",
+                "-i",
+                str(sample_file),
+                "--input-formats",
+                "TXT",
+                "--outputs",
+                str(sample_file),
+                "--output-formats",
+                "TXT",
+                "--source",
+                "ACME Corp",
+                "--arguments",
+                "--mode fast",
+                "--output-log",
+                "Done",
+                "--warnings",
+                "None",
+                "--drl",
+                "5",
+            ]
+        )
+
+        assert result == 0
+        chain = ProvenanceChain.load(str(prov_file))
+        step = chain.get_steps()[0]
+        assert step["arguments"] == "--mode fast"
+        assert step["output_log"] == "Done"
+        assert step["warnings"] == "None"
+        assert step["drl"] == 5
+
+    def test_add_step_no_ended_at(self, prov_file, sample_file):
+        """Test adding an ongoing step without --ended-at."""
+        result = self._run_main(
+            [
+                "-p",
+                str(prov_file),
+                "--started-at",
+                "2024-10-15T11:00:00Z",
+                "--tool-name",
+                "my_tool",
+                "--tool-version",
+                "1.0",
+                "--operation",
+                "processing",
+                "-i",
+                str(sample_file),
+                "--input-formats",
+                "TXT",
+                "--outputs",
+                str(sample_file),
+                "--output-formats",
+                "TXT",
+            ]
+        )
+
+        assert result == 0
+        chain = ProvenanceChain.load(str(prov_file))
+        assert len(chain.get_steps()) == 1
+
+    def test_add_step_multiple_inputs_outputs(self, prov_file, sample_files):
+        """Test adding a step with multiple inputs and outputs."""
+        result = self._run_main(
+            [
+                "-p",
+                str(prov_file),
+                "--started-at",
+                "2024-10-15T11:00:00Z",
+                "--ended-at",
+                "2024-10-15T11:05:30Z",
+                "--tool-name",
+                "combiner",
+                "--tool-version",
+                "1.0",
+                "--operation",
+                "merge",
+                "-i",
+                str(sample_files[0]),
+                str(sample_files[1]),
+                "--input-formats",
+                "TXT",
+                "TXT",
+                "--outputs",
+                str(sample_files[2]),
+                "--output-formats",
+                "TXT",
+            ]
+        )
+
+        assert result == 0
+        chain = ProvenanceChain.load(str(prov_file))
+        assert len(chain.get_steps()) == 1
+
+    def test_add_step_with_none_provenance_files(self, prov_file, sample_files):
+        """Test --input-provenance-files with 'none' sentinel values."""
+        result = self._run_main(
+            [
+                "-p",
+                str(prov_file),
+                "--started-at",
+                "2024-10-15T11:00:00Z",
+                "--ended-at",
+                "2024-10-15T11:05:30Z",
+                "--tool-name",
+                "combiner",
+                "--tool-version",
+                "1.0",
+                "--operation",
+                "merge",
+                "-i",
+                str(sample_files[0]),
+                str(sample_files[1]),
+                "--input-formats",
+                "TXT",
+                "TXT",
+                "--outputs",
+                str(sample_files[2]),
+                "--output-formats",
+                "TXT",
+                "--input-provenance-files",
+                "none",
+                "none",
+            ]
+        )
+
+        assert result == 0
+
+    def test_add_step_output_to_new_file(self, prov_file, tmp_path, sample_file):
+        """Test writing the updated chain to a new output file."""
+        output_file = tmp_path / "prov_updated.json"
+
+        result = self._run_main(
+            [
+                "-p",
+                str(prov_file),
+                "--started-at",
+                "2024-10-15T11:00:00Z",
+                "--ended-at",
+                "2024-10-15T11:05:30Z",
+                "--tool-name",
+                "my_tool",
+                "--tool-version",
+                "1.0",
+                "--operation",
+                "processing",
+                "-i",
+                str(sample_file),
+                "--input-formats",
+                "TXT",
+                "--outputs",
+                str(sample_file),
+                "--output-formats",
+                "TXT",
+                "-o",
+                str(output_file),
+            ]
+        )
+
+        assert result == 0
+        assert output_file.exists()
+        # Original file should be unchanged
+        original_chain = ProvenanceChain.load(str(prov_file))
+        assert len(original_chain.get_steps()) == 0
+        # Updated file should have the step
+        updated_chain = ProvenanceChain.load(str(output_file))
+        assert len(updated_chain.get_steps()) == 1
+
+    def test_missing_provenance_file(self, tmp_path, sample_file):
+        """Test error when provenance file does not exist."""
+        result = self._run_main(
+            [
+                "-p",
+                str(tmp_path / "nonexistent.json"),
+                "--started-at",
+                "2024-10-15T11:00:00Z",
+                "--tool-name",
+                "my_tool",
+                "--tool-version",
+                "1.0",
+                "--operation",
+                "processing",
+                "-i",
+                str(sample_file),
+                "--input-formats",
+                "TXT",
+                "--outputs",
+                str(sample_file),
+                "--output-formats",
+                "TXT",
+            ]
+        )
+
+        assert result == 1
+
+    def test_mismatched_input_formats(self, prov_file, sample_files):
+        """Test error when --input-formats count does not match --inputs."""
+        result = self._run_main(
+            [
+                "-p",
+                str(prov_file),
+                "--started-at",
+                "2024-10-15T11:00:00Z",
+                "--tool-name",
+                "my_tool",
+                "--tool-version",
+                "1.0",
+                "--operation",
+                "processing",
+                "-i",
+                str(sample_files[0]),
+                str(sample_files[1]),
+                "--input-formats",
+                "TXT",  # only 1 format for 2 inputs
+                "--outputs",
+                str(sample_files[2]),
+                "--output-formats",
+                "TXT",
+            ]
+        )
+
+        assert result == 1
+
+    def test_mismatched_output_formats(self, prov_file, sample_files):
+        """Test error when --output-formats count does not match --outputs."""
+        result = self._run_main(
+            [
+                "-p",
+                str(prov_file),
+                "--started-at",
+                "2024-10-15T11:00:00Z",
+                "--tool-name",
+                "my_tool",
+                "--tool-version",
+                "1.0",
+                "--operation",
+                "processing",
+                "-i",
+                str(sample_files[0]),
+                "--input-formats",
+                "TXT",
+                "--outputs",
+                str(sample_files[1]),
+                str(sample_files[2]),
+                "--output-formats",
+                "TXT",  # only 1 format for 2 outputs
+            ]
+        )
+
+        assert result == 1
+
+    def test_overwrite_existing_output(self, prov_file, tmp_path, sample_file):
+        """Test --overwrite flag for output file."""
+        output_file = tmp_path / "output.json"
+        output_file.write_text("{}")
+
+        # Without --overwrite should fail
+        result = self._run_main(
+            [
+                "-p",
+                str(prov_file),
+                "--started-at",
+                "2024-10-15T11:00:00Z",
+                "--tool-name",
+                "my_tool",
+                "--tool-version",
+                "1.0",
+                "--operation",
+                "processing",
+                "-i",
+                str(sample_file),
+                "--input-formats",
+                "TXT",
+                "--outputs",
+                str(sample_file),
+                "--output-formats",
+                "TXT",
+                "-o",
+                str(output_file),
+            ]
+        )
+        assert result == 1
+
+        # With --overwrite should succeed
+        result = self._run_main(
+            [
+                "-p",
+                str(prov_file),
+                "--started-at",
+                "2024-10-15T11:00:00Z",
+                "--tool-name",
+                "my_tool",
+                "--tool-version",
+                "1.0",
+                "--operation",
+                "processing",
+                "-i",
+                str(sample_file),
+                "--input-formats",
+                "TXT",
+                "--outputs",
+                str(sample_file),
+                "--output-formats",
+                "TXT",
+                "-o",
+                str(output_file),
+                "--overwrite",
+            ]
+        )
+        assert result == 0
+
+    def test_capture_agent(self, prov_file, sample_file):
+        """Test --capture-agent flag records user info."""
+        result = self._run_main(
+            [
+                "-p",
+                str(prov_file),
+                "--started-at",
+                "2024-10-15T11:00:00Z",
+                "--ended-at",
+                "2024-10-15T11:05:30Z",
+                "--tool-name",
+                "my_tool",
+                "--tool-version",
+                "1.0",
+                "--operation",
+                "processing",
+                "-i",
+                str(sample_file),
+                "--input-formats",
+                "TXT",
+                "--outputs",
+                str(sample_file),
+                "--output-formats",
+                "TXT",
+                "--capture-agent",
+            ]
+        )
+
+        assert result == 0
+        chain = ProvenanceChain.load(str(prov_file))
+        step = chain.get_steps()[0]
+        assert step.get("agent") is not None
+
+    def test_capture_environment(self, prov_file, sample_file):
+        """Test --capture-environment flag records runtime info."""
+        result = self._run_main(
+            [
+                "-p",
+                str(prov_file),
+                "--started-at",
+                "2024-10-15T11:00:00Z",
+                "--ended-at",
+                "2024-10-15T11:05:30Z",
+                "--tool-name",
+                "my_tool",
+                "--tool-version",
+                "1.0",
+                "--operation",
+                "processing",
+                "-i",
+                str(sample_file),
+                "--input-formats",
+                "TXT",
+                "--outputs",
+                str(sample_file),
+                "--output-formats",
+                "TXT",
+                "--capture-environment",
+            ]
+        )
+
+        assert result == 0
+        chain = ProvenanceChain.load(str(prov_file))
+        step = chain.get_steps()[0]
+        assert step.get("environment") is not None
+
+    def test_user_without_capture_agent_fails(self, prov_file, sample_file):
+        """Test that --user without --capture-agent returns error."""
+        result = self._run_main(
+            [
+                "-p",
+                str(prov_file),
+                "--started-at",
+                "2024-10-15T11:00:00Z",
+                "--tool-name",
+                "my_tool",
+                "--tool-version",
+                "1.0",
+                "--operation",
+                "processing",
+                "-i",
+                str(sample_file),
+                "--input-formats",
+                "TXT",
+                "--outputs",
+                str(sample_file),
+                "--output-formats",
+                "TXT",
+                "--user",
+                "alice",
+            ]
+        )
+
+        assert result == 1
+
+    def test_runtime_without_capture_environment_fails(self, prov_file, sample_file):
+        """Test that --runtime without --capture-environment returns error."""
+        result = self._run_main(
+            [
+                "-p",
+                str(prov_file),
+                "--started-at",
+                "2024-10-15T11:00:00Z",
+                "--tool-name",
+                "my_tool",
+                "--tool-version",
+                "1.0",
+                "--operation",
+                "processing",
+                "-i",
+                str(sample_file),
+                "--input-formats",
+                "TXT",
+                "--outputs",
+                str(sample_file),
+                "--output-formats",
+                "TXT",
+                "--runtime",
+                "Node.js",
+            ]
+        )
+
+        assert result == 1
+
+    def test_add_multiple_steps(self, prov_file, sample_file):
+        """Test adding multiple steps sequentially via CLI."""
+        for i in range(3):
+            result = self._run_main(
+                [
+                    "-p",
+                    str(prov_file),
+                    "--started-at",
+                    f"2024-10-15T1{i}:00:00Z",
+                    "--ended-at",
+                    f"2024-10-15T1{i}:05:00Z",
+                    "--tool-name",
+                    f"tool_{i}",
+                    "--tool-version",
+                    "1.0",
+                    "--operation",
+                    f"step_{i}",
+                    "-i",
+                    str(sample_file),
+                    "--input-formats",
+                    "TXT",
+                    "--outputs",
+                    str(sample_file),
+                    "--output-formats",
+                    "TXT",
+                ]
+            )
+            assert result == 0
+
+        chain = ProvenanceChain.load(str(prov_file))
+        assert len(chain.get_steps()) == 3

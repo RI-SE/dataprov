@@ -66,6 +66,7 @@ A lightweight Python library for tracking data provenance through processing pip
     - [Visualization](#visualization)
   - [CLI Tools](#cli-tools)
     - [dataprov-new](#dataprov-new)
+    - [dataprov-add](#dataprov-add)
     - [dataprov-visualize](#dataprov-visualize)
     - [dataprov-add-attribution](#dataprov-add-attribution)
     - [dataprov-report](#dataprov-report)
@@ -790,6 +791,62 @@ dataprov-new \
     --description "Video processing pipeline" \
     --tags video,processing,2024
 ```
+
+### dataprov-add
+
+Add a processing step to an existing provenance chain. This is the CLI equivalent of `ProvenanceChain.add()`:
+
+```bash
+# Minimal usage
+dataprov-add -p provenance.json \
+    --started-at "2024-10-15T11:00:00Z" --ended-at "2024-10-15T11:05:30Z" \
+    --tool-name drone_stabilizer --tool-version 2.0 --operation stabilization \
+    -i raw.mp4 --input-formats MP4 \
+    --outputs stabilized.mp4 --output-formats MP4
+
+# Multiple inputs and outputs
+dataprov-add -p provenance.json \
+    --started-at "2024-10-15T12:00:00Z" --ended-at "2024-10-15T12:10:00Z" \
+    --tool-name video_combiner --tool-version 1.5 --operation concatenation \
+    -i video1.mp4 video2.mp4 video3.mp4 \
+    --input-formats MP4 MP4 MP4 \
+    --outputs combined.mp4 --output-formats MP4
+
+# With linked input provenance files (use "none" for inputs with no provenance)
+dataprov-add -p provenance.json \
+    --started-at "2024-10-15T12:00:00Z" --ended-at "2024-10-15T12:10:00Z" \
+    --tool-name video_combiner --tool-version 1.5 --operation concatenation \
+    -i video1.mp4 video2.mp4 --input-formats MP4 MP4 \
+    --outputs combined.mp4 --output-formats MP4 \
+    --input-provenance-files video1_prov.json none
+
+# With DRL, agent capture, and execution log
+dataprov-add -p provenance.json \
+    --started-at "2024-10-15T10:00:00Z" --ended-at "2024-10-15T10:05:30Z" \
+    --tool-name processor --tool-version 1.0 --operation processing \
+    -i input.txt --input-formats TXT \
+    --outputs output.txt --output-formats TXT \
+    --drl 3 --capture-agent \
+    --output-log "Processing completed successfully"
+
+# Capture execution environment
+dataprov-add -p provenance.json \
+    --started-at "2024-10-15T10:00:00Z" --ended-at "2024-10-15T10:05:30Z" \
+    --tool-name processor --tool-version 1.0 --operation processing \
+    -i input.txt --input-formats TXT \
+    --outputs output.txt --output-formats TXT \
+    --capture-environment
+
+# Write to new file instead of modifying in place
+dataprov-add -p provenance.json \
+    --started-at "2024-10-15T11:00:00Z" --ended-at "2024-10-15T11:05:30Z" \
+    --tool-name my_tool --tool-version 1.0 --operation processing \
+    -i input.csv --input-formats CSV \
+    --outputs output.csv --output-formats CSV \
+    -o provenance_updated.json
+```
+
+Omit `--ended-at` for steps that are still ongoing or whose end time is not yet known.
 
 ### dataprov-visualize
 
