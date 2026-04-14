@@ -89,7 +89,7 @@ A lightweight Python library for tracking data provenance through processing pip
   - [Comparison with Other Provenance Systems](#comparison-with-other-provenance-systems)
     - [W3C PROV-JSON Compatibility](#w3c-prov-json-compatibility)
   - [Project Structure](#project-structure)
-  - [Testing](#testing)
+  - [Development](#development)
   - [Schema Version](#schema-version)
   - [Acknowledgement](#acknowledgement)
 
@@ -1405,7 +1405,7 @@ dataprov/
 └── LICENSE                # License file
 ```
 
-## Testing
+## Development
 
 Run the test suite with pytest:
 
@@ -1425,6 +1425,16 @@ pytest tests/test_dataprov.py::TestExecutionTiming
 # Run specific test
 pytest tests/test_dataprov.py::TestExecutionTiming::test_timing_fields_present
 ```
+
+### Pre-commit Hooks
+
+Pre-commit hooks run linting and tests automatically on each commit. Install them with:
+
+```bash
+uv run pre-commit install
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for more details on contributing to this project.
 
 ## Schema Version
 
