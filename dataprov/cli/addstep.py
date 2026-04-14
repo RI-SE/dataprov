@@ -316,9 +316,7 @@ Examples:
     # Validate output file
     output_path = Path(args.output) if args.output else prov_path
     if args.output and output_path.exists() and not args.overwrite:
-        print(
-            f"Error: Output file already exists: {args.output}", file=sys.stderr
-        )
+        print(f"Error: Output file already exists: {args.output}", file=sys.stderr)
         print("Use --overwrite to replace existing file", file=sys.stderr)
         return 1
 
