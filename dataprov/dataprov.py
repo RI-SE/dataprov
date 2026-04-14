@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Data Provenance Tracking Library (PROV-JSON Format)
 
@@ -854,9 +856,7 @@ class ProvenanceChain:
         }
 
         # Process input entities
-        for i, (file_path, file_format) in enumerate(
-            zip(inputs, input_formats, strict=True)
-        ):
+        for i, (file_path, file_format) in enumerate(zip(inputs, input_formats)):
             entity_id = f"entity:{file_path}"
 
             # Create entity if not exists
@@ -917,9 +917,7 @@ class ProvenanceChain:
             self.data["used"][usage_id] = usage
 
         # Process output entities
-        for i, (file_path, file_format) in enumerate(
-            zip(outputs, output_formats, strict=True)
-        ):
+        for i, (file_path, file_format) in enumerate(zip(outputs, output_formats)):
             entity_id = f"entity:{file_path}"
 
             # Create entity
