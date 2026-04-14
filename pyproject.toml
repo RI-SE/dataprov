@@ -80,6 +80,7 @@ select = [
 ignore = [
     "E501",   # line too long (handled by formatter)
     "SIM108", # use ternary operator (can reduce readability)
+    "B905",   # zip() without 'strict='
 ]
 
 [tool.ruff.lint.isort]
