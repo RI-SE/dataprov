@@ -687,6 +687,145 @@ class TestInputValidation:
         assert success is False
 
 
+class TestPathLikeArguments:
+    """Test that path-like objects (pathlib.Path) are accepted and stored as str."""
+
+    def test_create_with_path(self, tmp_path):
+        """initial_source given as Path is stored as a string and saves."""
+        chain = ProvenanceChain.create(entity_id="p", initial_source=tmp_path)
+        assert chain.data["dataprov:metadata"]["initialSource"] == str(tmp_path)
+
+        chain.save(tmp_path / "prov.json")
+        loaded = ProvenanceChain.load(tmp_path / "prov.json")
+        assert loaded.data["dataprov:metadata"]["initialSource"] == str(tmp_path)
+
+    def test_add_with_paths(
+        self, tmp_path, sample_file, sample_provenance_chain, timestamps
+    ):
+        """inputs, outputs and input_provenance_files accept Path objects."""
+        chain = ProvenanceChain.create(entity_id="p", initial_source="/test/")
+        out_file = tmp_path / "out.txt"
+        out_file.write_text("out")
+
+        success = chain.add(
+            started_at=timestamps["started_at"],
+            ended_at=timestamps["ended_at"],
+            tool_name="tool",
+            tool_version="1.0",
+            operation="op",
+            inputs=[sample_file],
+            input_formats=["TXT"],
+            outputs=[out_file],
+            output_formats=["TXT"],
+            input_provenance_files=[sample_provenance_chain],
+        )
+        assert success is True
+
+        step = chain.get_steps()[0]
+        assert step["inputs"][0]["path"] == str(sample_file)
+        assert step["inputs"][0]["provenance_file"] == str(sample_provenance_chain)
+        assert step["outputs"][0]["path"] == str(out_file)
+        assert step["outputs"][0]["checksum"]
+
+        chain.save(tmp_path / "prov.json")
+        json.loads((tmp_path / "prov.json").read_text())
+
+    def test_add_attribution_with_path(self, tmp_path, sample_file):
+        """add_attribution accepts a single Path or a list of Paths."""
+        chain = ProvenanceChain.create(entity_id="p", initial_source="/test/")
+
+        assert chain.add_attribution(sample_file, agent_name="someone") is True
+        assert chain.add_attribution([sample_file], agent_name="other") is True
+
+        assert f"entity:{sample_file}" in chain.data["entity"]
+        chain.save(tmp_path / "prov.json")
+
+    def test_invalid_path_type_rejected(self, timestamps):
+        """A value that is neither str nor path-like raises TypeError immediately."""
+        chain = ProvenanceChain.create(entity_id="p", initial_source="/test/")
+
+        with pytest.raises(TypeError):
+            chain.add(
+                started_at=timestamps["started_at"],
+                ended_at=timestamps["ended_at"],
+                tool_name="tool",
+                tool_version="1.0",
+                operation="op",
+                inputs=[123],
+                input_formats=["TXT"],
+                outputs=[],
+                output_formats=[],
+            )
+
+
+class TestEarlySerializationCheck:
+    """Test that values that cannot be saved as JSON are rejected when added."""
+
+    def test_custom_metadata_not_serializable(self):
+        """create() rejects a custom_metadata value that is not JSON serializable."""
+        with pytest.raises(TypeError, match="myapp:when"):
+            ProvenanceChain.create(
+                entity_id="p",
+                initial_source="/test/",
+                custom_namespaces={"myapp": "https://example.com/myapp#"},
+                custom_metadata={"myapp:when": object()},
+            )
+
+    def test_custom_properties_not_serializable(self, sample_file, timestamps):
+        """add() rejects a custom property value that is not JSON serializable."""
+        chain = ProvenanceChain.create(
+            entity_id="p",
+            initial_source="/test/",
+            custom_namespaces={"myapp": "https://example.com/myapp#"},
+        )
+
+        with pytest.raises(TypeError, match="activity:myapp:count"):
+            chain.add(
+                started_at=timestamps["started_at"],
+                ended_at=timestamps["ended_at"],
+                tool_name="tool",
+                tool_version="1.0",
+                operation="op",
+                inputs=[str(sample_file)],
+                input_formats=["TXT"],
+                outputs=[str(sample_file)],
+                output_formats=["TXT"],
+                custom_properties={"activity:myapp:count": {1, 2}},
+            )
+
+        # Nothing was added to the chain
+        assert chain.get_steps() == []
+
+    def test_attribution_custom_properties_not_serializable(self, sample_file):
+        """add_attribution() rejects a custom property value that is not JSON serializable."""
+        chain = ProvenanceChain.create(
+            entity_id="p",
+            initial_source="/test/",
+            custom_namespaces={"myapp": "https://example.com/myapp#"},
+        )
+
+        with pytest.raises(TypeError, match="entity:myapp:obj"):
+            chain.add_attribution(
+                str(sample_file),
+                agent_name="someone",
+                custom_properties={"entity:myapp:obj": object()},
+            )
+
+    def test_failed_save_keeps_existing_file(self, tmp_path):
+        """A serialization error in save() does not truncate an existing file."""
+        target = tmp_path / "prov.json"
+        chain = ProvenanceChain.create(entity_id="p", initial_source="/test/")
+        chain.save(target)
+        original = target.read_text()
+
+        # Simulate invalid data that bypassed the early checks
+        chain.data["dataprov:metadata"]["description"] = object()
+        with pytest.raises(TypeError):
+            chain.save(target)
+
+        assert target.read_text() == original
+
+
 # =============================================================================
 # Version 2.0 Feature Tests
 # =============================================================================
@@ -3418,3 +3557,459 @@ class TestCLIAddStep:
 
         chain = ProvenanceChain.load(str(prov_file))
         assert len(chain.get_steps()) == 3
+
+
+class TestHTMLReportEscaping:
+    """Test that the HTML report escapes values from the provenance file."""
+
+    PAYLOAD = '<script>alert("x")</script>'
+
+    def _malicious_chain(self, tmp_path, timestamps):
+        """Build a chain where every rendered field contains an HTML payload."""
+        p = self.PAYLOAD
+        chain = ProvenanceChain.create(
+            entity_id=p, initial_source=p, description=p, tags=[p]
+        )
+        chain.add(
+            started_at=timestamps["started_at"],
+            ended_at=timestamps["ended_at"],
+            tool_name=p,
+            tool_version=p,
+            operation=p,
+            inputs=[str(tmp_path / f"in{p}.txt")],
+            input_formats=[p],
+            outputs=[str(tmp_path / f"out{p}.txt")],
+            output_formats=[p],
+            arguments=p,
+            output_log=p,
+            warnings=p,
+            capture_agent=True,
+            user=p,
+            hostname=p,
+            capture_environment=True,
+            runtime=p,
+            runtime_version=p,
+        )
+
+        # Values a hand-crafted or third-party file could contain
+        chain.data["dataprov:metadata"]["version"] = p
+        activity = next(iter(chain.data["activity"].values()))
+        activity["dataprov:drl"] = p
+        usage = next(iter(chain.data["used"].values()))
+        usage["dataprov:hadProvenance"] = "bundle:x"
+        chain.data["entity"]["bundle:x"] = {
+            "prov:type": "prov:Bundle",
+            "dataprov:bundleChecksum": p,
+        }
+        chain.data["bundle"] = {
+            "bundle:x": {
+                "activity": {"activity:step_1": {"dataprov:operation": p}},
+                "agent": {"agent:a": {"dataprov:toolName": p}},
+                "wasAssociatedWith": {
+                    "_:assoc_1": {
+                        "prov:activity": "activity:step_1",
+                        "prov:agent": "agent:a",
+                    }
+                },
+                "used": {"_:u": {"prov:activity": "activity:step_1", "prov:entity": p}},
+                "wasGeneratedBy": {
+                    "_:g": {"prov:activity": "activity:step_1", "prov:entity": p}
+                },
+            }
+        }
+        return chain
+
+    def test_report_escapes_all_values(self, tmp_path, timestamps):
+        """No value from the provenance data is emitted as raw HTML."""
+        from dataprov.cli.report import generate_html_report
+
+        report = generate_html_report(self._malicious_chain(tmp_path, timestamps))
+
+        assert "<script" not in report
+        assert "&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;" in report
+
+    def test_nested_bundle_escaped(self):
+        """Nested bundle rendering escapes the bundle ID and its contents."""
+        from dataprov.cli.report import _render_nested_bundle
+
+        p = self.PAYLOAD
+        html = _render_nested_bundle(
+            p, {"activity": {"activity:step_1": {"dataprov:operation": p}}}
+        )
+
+        assert "<script" not in html
+        assert "&lt;script&gt;" in html
+
+    def test_plain_values_unchanged(self, sample_provenance_chain):
+        """Ordinary values render as before."""
+        from dataprov.cli.report import generate_html_report
+
+        chain = ProvenanceChain.load(str(sample_provenance_chain))
+        report = generate_html_report(chain)
+
+        assert "<strong>fixture_chain</strong>" in report
+        assert '<span class="tag">fixture</span>' in report
+
+
+class TestCLIQuiet:
+    """Tests for the -q/--quiet option of the CLI tools."""
+
+    def _run(self, monkeypatch, module, prog, argv):
+        """Run a CLI tool's main() with the given argv list."""
+        import importlib
+        import sys
+
+        main = importlib.import_module(f"dataprov.cli.{module}").main
+        monkeypatch.setattr(sys, "argv", [prog] + argv)
+        return main()
+
+    def _new_chain(self, monkeypatch, tmp_path, *extra):
+        prov_file = tmp_path / "prov.json"
+        result = self._run(
+            monkeypatch,
+            "newprovchain",
+            "dataprov-new",
+            ["-s", "src", "-o", str(prov_file), "-i", "ent", "--no-verify", *extra],
+        )
+        return result, prov_file
+
+    def test_new_prints_summary_to_stderr(self, monkeypatch, tmp_path, capsys):
+        """Without -q, dataprov-new prints its summary to stderr, not stdout."""
+        result, prov_file = self._new_chain(monkeypatch, tmp_path)
+
+        captured = capsys.readouterr()
+        assert result == 0
+        assert captured.out == ""
+        assert "Created new provenance chain" in captured.err
+        assert "dataprov-add" in captured.err
+
+    def test_new_quiet(self, monkeypatch, tmp_path, capsys):
+        """dataprov-new -q creates the chain without printing anything."""
+        result, prov_file = self._new_chain(monkeypatch, tmp_path, "-q")
+
+        captured = capsys.readouterr()
+        assert result == 0
+        assert prov_file.exists()
+        assert captured.out == ""
+        assert captured.err == ""
+
+    def test_quiet_still_prints_errors(self, monkeypatch, tmp_path, capsys):
+        """Errors are printed even with --quiet."""
+        self._new_chain(monkeypatch, tmp_path, "-q")
+        result, _ = self._new_chain(monkeypatch, tmp_path, "--quiet")
+
+        captured = capsys.readouterr()
+        assert result == 1
+        assert "already exists" in captured.err
+
+    def test_add_quiet(self, monkeypatch, tmp_path, sample_file, capsys):
+        """dataprov-add -q records the step without printing anything."""
+        _, prov_file = self._new_chain(monkeypatch, tmp_path, "-q")
+        result = self._run(
+            monkeypatch,
+            "addstep",
+            "dataprov-add",
+            [
+                "-q",
+                "-p",
+                str(prov_file),
+                "--started-at",
+                "2024-10-15T11:00:00Z",
+                "--tool-name",
+                "tool",
+                "--tool-version",
+                "1.0",
+                "--operation",
+                "op",
+                "-i",
+                str(sample_file),
+                "--input-formats",
+                "TXT",
+                "--outputs",
+                str(sample_file),
+                "--output-formats",
+                "TXT",
+            ],
+        )
+
+        captured = capsys.readouterr()
+        assert result == 0
+        assert len(ProvenanceChain.load(prov_file).get_steps()) == 1
+        assert captured.out == ""
+        assert captured.err == ""
+
+    def test_add_attribution_quiet(self, monkeypatch, tmp_path, sample_file, capsys):
+        """dataprov-add-attribution -q records the attribution silently."""
+        _, prov_file = self._new_chain(monkeypatch, tmp_path, "-q")
+        result = self._run(
+            monkeypatch,
+            "addattribution",
+            "dataprov-add-attribution",
+            ["-q", "-p", str(prov_file), "-i", str(sample_file), "--agent-name", "x"],
+        )
+
+        captured = capsys.readouterr()
+        assert result == 0
+        assert ProvenanceChain.load(prov_file).data["wasAttributedTo"]
+        assert captured.out == ""
+        assert captured.err == ""
+
+    @pytest.mark.parametrize(
+        "module,prog,suffix",
+        [
+            ("visualize", "dataprov-visualize", "dot"),
+            ("report", "dataprov-report", "html"),
+        ],
+    )
+    def test_output_tools_quiet(
+        self, monkeypatch, tmp_path, capsys, module, prog, suffix
+    ):
+        """dataprov-visualize/-report -q -o write the file without printing."""
+        _, prov_file = self._new_chain(monkeypatch, tmp_path, "-q")
+        out_file = tmp_path / f"out.{suffix}"
+        result = self._run(
+            monkeypatch, module, prog, ["-q", str(prov_file), "-o", str(out_file)]
+        )
+
+        captured = capsys.readouterr()
+        assert result == 0
+        assert out_file.exists()
+        assert captured.out == ""
+        assert captured.err == ""
+
+
+class TestFormatAutoDetection:
+    """Tests for automatic file format detection in add() and dataprov-add."""
+
+    def _files(self, tmp_path, *names):
+        paths = []
+        for name in names:
+            path = tmp_path / name
+            path.write_text("data")
+            paths.append(str(path))
+        return paths
+
+    def _add(self, chain, timestamps, **kwargs):
+        return chain.add(
+            started_at=timestamps["started_at"],
+            ended_at=timestamps["ended_at"],
+            tool_name="tool",
+            tool_version="1.0",
+            operation="op",
+            **kwargs,
+        )
+
+    def test_formats_omitted(self, tmp_path, timestamps):
+        """Formats are detected from extensions when omitted."""
+        in_csv, out_json = self._files(tmp_path, "in.csv", "out.json")
+        chain = ProvenanceChain.create(entity_id="e", initial_source="/test/")
+
+        assert self._add(chain, timestamps, inputs=[in_csv], outputs=[out_json])
+
+        step = chain.get_steps()[0]
+        assert step["inputs"][0]["format"] == "csv"
+        assert step["outputs"][0]["format"] == "json"
+
+    def test_partial_formats(self, tmp_path, timestamps):
+        """None entries are detected, explicit formats are kept."""
+        a, b, out = self._files(tmp_path, "a.csv", "b.tsv", "out.mp4")
+        chain = ProvenanceChain.create(entity_id="e", initial_source="/test/")
+
+        assert self._add(
+            chain,
+            timestamps,
+            inputs=[a, b],
+            input_formats=["CSV", None],
+            outputs=[out],
+            output_formats=[None],
+        )
+
+        step = chain.get_steps()[0]
+        assert [i["format"] for i in step["inputs"]] == ["CSV", "tsv"]
+        assert step["outputs"][0]["format"] == "mp4"
+
+    def test_no_extension_is_unknown(self, tmp_path, timestamps):
+        """A file without extension gets format 'unknown'."""
+        in_file, out_file = self._files(tmp_path, "README", "result")
+        chain = ProvenanceChain.create(entity_id="e", initial_source="/test/")
+
+        assert self._add(chain, timestamps, inputs=[in_file], outputs=[out_file])
+
+        step = chain.get_steps()[0]
+        assert step["inputs"][0]["format"] == "unknown"
+        assert step["outputs"][0]["format"] == "unknown"
+
+    def test_outputs_still_required(self, tmp_path, timestamps):
+        """Omitting outputs raises TypeError like a missing argument."""
+        (in_file,) = self._files(tmp_path, "in.csv")
+        chain = ProvenanceChain.create(entity_id="e", initial_source="/test/")
+
+        with pytest.raises(TypeError, match="outputs"):
+            self._add(chain, timestamps, inputs=[in_file])
+
+    def test_explicit_format_length_mismatch(self, tmp_path, timestamps):
+        """An explicit format list of the wrong length is still rejected."""
+        a, b = self._files(tmp_path, "a.csv", "b.csv")
+        chain = ProvenanceChain.create(entity_id="e", initial_source="/test/")
+
+        assert (
+            self._add(
+                chain, timestamps, inputs=[a, b], input_formats=["CSV"], outputs=[a]
+            )
+            is False
+        )
+
+    def test_positional_call_still_works(self, tmp_path, timestamps):
+        """The original positional argument order is unchanged."""
+        in_file, out_file = self._files(tmp_path, "in.txt", "out.txt")
+        chain = ProvenanceChain.create(entity_id="e", initial_source="/test/")
+
+        assert chain.add(
+            timestamps["started_at"],
+            timestamps["ended_at"],
+            "tool",
+            "1.0",
+            "op",
+            [in_file],
+            ["TXT"],
+            [out_file],
+            ["TXT"],
+        )
+        assert chain.get_steps()[0]["outputs"][0]["format"] == "TXT"
+
+    def test_cli_without_formats(self, monkeypatch, tmp_path, capsys):
+        """dataprov-add works without --input-formats/--output-formats."""
+        import sys
+
+        from dataprov.cli.addstep import main
+
+        in_csv, out_parquet = self._files(tmp_path, "in.csv", "out.parquet")
+        prov_file = tmp_path / "prov.json"
+        ProvenanceChain.create(entity_id="e", initial_source="/test/").save(prov_file)
+
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "dataprov-add",
+                "-p",
+                str(prov_file),
+                "--started-at",
+                "2024-10-15T11:00:00Z",
+                "--tool-name",
+                "tool",
+                "--tool-version",
+                "1.0",
+                "--operation",
+                "op",
+                "-i",
+                in_csv,
+                "--outputs",
+                out_parquet,
+            ],
+        )
+        assert main() == 0
+
+        step = ProvenanceChain.load(prov_file).get_steps()[0]
+        assert step["inputs"][0]["format"] == "csv"
+        assert step["outputs"][0]["format"] == "parquet"
+
+
+class TestCustomPropertiesInReport:
+    """Tests for custom metadata/properties in get_steps() and the HTML report."""
+
+    def _chain(self, tmp_path, timestamps):
+        in_file = tmp_path / "in.csv"
+        in_file.write_text("a\n1\n1\n")
+        out_file = tmp_path / "out.csv"
+        out_file.write_text("a\n1\n")
+        chain = ProvenanceChain.create(
+            entity_id="e",
+            initial_source="/test/",
+            custom_namespaces={"ex": "https://example.org/ns#"},
+            custom_metadata={
+                "ex:operationClass": "operation_3695",
+                "ex:project": {"id": "P-1", "funded": True},
+            },
+        )
+        chain.add(
+            started_at=timestamps["started_at"],
+            ended_at=timestamps["ended_at"],
+            tool_name="pandas",
+            tool_version="2.2",
+            operation="dedup",
+            inputs=[in_file],
+            outputs=[out_file],
+            custom_properties={
+                "activity:ex:rowsRemoved": 1,
+                "input-entity:ex:rowCount": 2,
+                "output-entity:ex:rowCount": 1,
+                "agent:ex:license": "<BSD>",
+            },
+        )
+        return chain
+
+    def test_get_custom_metadata(self, tmp_path, timestamps):
+        """get_custom_metadata() returns only the custom top-level keys."""
+        chain = self._chain(tmp_path, timestamps)
+        assert chain.get_custom_metadata() == {
+            "ex:operationClass": "operation_3695",
+            "ex:project": {"id": "P-1", "funded": True},
+        }
+
+    def test_get_steps_custom_properties(self, tmp_path, timestamps):
+        """get_steps() includes custom properties of activity, tool and entities."""
+        step = self._chain(tmp_path, timestamps).get_steps()[0]
+
+        assert step["custom_properties"] == {"ex:rowsRemoved": 1}
+        assert step["tool"]["custom_properties"] == {"ex:license": "<BSD>"}
+        assert step["inputs"][0]["custom_properties"] == {"ex:rowCount": 2}
+        assert step["outputs"][0]["custom_properties"] == {"ex:rowCount": 1}
+
+    def test_get_steps_without_custom_properties(self, sample_file, timestamps):
+        """Without custom properties, get_steps() has no custom_properties keys."""
+        chain = ProvenanceChain.create(entity_id="e", initial_source="/test/")
+        chain.add(
+            started_at=timestamps["started_at"],
+            ended_at=timestamps["ended_at"],
+            tool_name="t",
+            tool_version="1",
+            operation="op",
+            inputs=[sample_file],
+            outputs=[sample_file],
+        )
+        step = chain.get_steps()[0]
+
+        assert chain.get_custom_metadata() == {}
+        assert "custom_properties" not in step
+        assert "custom_properties" not in step["tool"]
+        assert "custom_properties" not in step["inputs"][0]
+
+    def test_report_shows_custom_data(self, tmp_path, timestamps):
+        """The report renders custom metadata and properties, escaped."""
+        from dataprov.cli.report import generate_html_report
+
+        report = generate_html_report(self._chain(tmp_path, timestamps))
+
+        assert '<details class="custom-metadata">' in report
+        assert "Custom Metadata (2)" in report
+        assert "ex:operationClass:</span> operation_3695" in report
+        # Non-string values are shown as JSON
+        assert (
+            "ex:project:</span> {&quot;id&quot;: &quot;P-1&quot;, &quot;funded&quot;: true}"
+            in report
+        )
+        assert "ex:rowsRemoved:</span> 1" in report
+        assert "Tool Properties" in report
+        assert "ex:license:</span> &lt;BSD&gt;" in report
+        assert "ex:rowCount:</span> 2" in report
+        assert "ex:rowCount:</span> 1" in report
+
+    def test_report_without_custom_data(self, sample_provenance_chain):
+        """Reports without custom data have no custom sections."""
+        from dataprov.cli.report import generate_html_report
+
+        report = generate_html_report(ProvenanceChain.load(sample_provenance_chain))
+
+        assert "<details" not in report
+        assert '<div class="custom-props">' not in report

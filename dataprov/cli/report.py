@@ -8,11 +8,43 @@ Usage:
 
 import argparse
 import contextlib
+import html
+import json
 import sys
 from datetime import datetime
 from pathlib import Path
 
 from dataprov import __version__
+
+
+def _e(value) -> str:
+    """Escape a value from the provenance data for safe inclusion in HTML."""
+    return html.escape(str(value), quote=True)
+
+
+def _format_value(value) -> str:
+    """Format a custom property value for HTML: strings as-is, other values as JSON."""
+    if not isinstance(value, str):
+        value = json.dumps(value, ensure_ascii=False)
+    return _e(value)
+
+
+def _render_custom_properties(props: dict, css_class: str, indent: str) -> str:
+    """Render custom ontology properties as one 'key: value' line each.
+
+    Args:
+        props: Custom properties as {'namespace:property': value}
+        css_class: CSS class of each line
+        indent: Indentation prefix for the generated HTML lines
+
+    Returns:
+        str: HTML snippet (empty if there are no properties)
+    """
+    return "".join(
+        f'{indent}<div class="{css_class}"><span class="metadata-label">{_e(key)}:</span>'
+        f" {_format_value(value)}</div>\n"
+        for key, value in props.items()
+    )
 
 
 def _render_nested_bundle(bundle_id: str, bundle_content: dict) -> str:
@@ -27,7 +59,7 @@ def _render_nested_bundle(bundle_id: str, bundle_content: dict) -> str:
     """
     parts = []
     parts.append('<div class="nested-bundle">\n')
-    parts.append(f"<h4>Nested Provenance: {bundle_id}</h4>\n")
+    parts.append(f"<h4>Nested Provenance: {_e(bundle_id)}</h4>\n")
 
     # Get activities sorted by step number
     activities = []
@@ -56,7 +88,9 @@ def _render_nested_bundle(bundle_id: str, bundle_content: dict) -> str:
     # Find inputs and outputs for each activity
     for _step_num, act_id, tool_name, operation in activities:
         parts.append('<div class="nested-step">\n')
-        parts.append(f'<div class="nested-step-title">{tool_name}: {operation}</div>\n')
+        parts.append(
+            f'<div class="nested-step-title">{_e(tool_name)}: {_e(operation)}</div>\n'
+        )
 
         # Find inputs (used relationships)
         inputs = []
@@ -75,10 +109,12 @@ def _render_nested_bundle(bundle_id: str, bundle_content: dict) -> str:
                 outputs.append(Path(path).name)
 
         if inputs:
-            parts.append(f'<div class="file-meta">Inputs: {", ".join(inputs)}</div>\n')
+            parts.append(
+                f'<div class="file-meta">Inputs: {_e(", ".join(inputs))}</div>\n'
+            )
         if outputs:
             parts.append(
-                f'<div class="file-meta">Outputs: {", ".join(outputs)}</div>\n'
+                f'<div class="file-meta">Outputs: {_e(", ".join(outputs))}</div>\n'
             )
 
         parts.append("</div>\n")
@@ -97,15 +133,15 @@ def generate_html_report(chain, include_bundles: bool = True) -> str:
     Returns:
         str: HTML report content
     """
-    # Extract metadata from PROV-JSON format
+    # Extract metadata from PROV-JSON format (escaped, as the file may be untrusted)
     metadata = chain.data.get("dataprov:metadata", {})
-    version = metadata.get("version", "unknown")
-    created = metadata.get("created", "unknown")
-    last_modified = metadata.get("lastModified", "unknown")
-    entity_id = metadata.get("rootEntityId", "unknown")
-    description = metadata.get("description", "")
-    initial_source = metadata.get("initialSource", "unknown")
-    tags = metadata.get("tags", [])
+    version = _e(metadata.get("version", "unknown"))
+    created = _e(metadata.get("created", "unknown"))
+    last_modified = _e(metadata.get("lastModified", "unknown"))
+    entity_id = _e(metadata.get("rootEntityId", "unknown"))
+    description = _e(metadata.get("description", ""))
+    initial_source = _e(metadata.get("initialSource", "unknown"))
+    tags = [_e(tag) for tag in metadata.get("tags", [])]
 
     steps = chain.get_steps()
 
@@ -292,6 +328,20 @@ def generate_html_report(chain, include_bundles: bool = True) -> str:
             font-weight: bold;
             color: #ff9800;
         }}
+        .custom-props {{
+            background-color: #f3e5f5;
+            padding: 10px;
+            border-left: 4px solid #9C27B0;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-size: 0.9em;
+        }}
+        details.custom-metadata summary {{
+            cursor: pointer;
+            font-weight: bold;
+            color: #555;
+            margin-top: 10px;
+        }}
         .footer {{
             text-align: center;
             margin-top: 40px;
@@ -337,6 +387,18 @@ def generate_html_report(chain, include_bundles: bool = True) -> str:
             html_parts.append(f'            <span class="tag">{tag}</span>\n')
         html_parts.append("        </div>\n")
 
+    # Custom metadata (collapsible, as it can be long)
+    custom_metadata = chain.get_custom_metadata()
+    if custom_metadata:
+        html_parts.append('        <details class="custom-metadata">\n')
+        html_parts.append(
+            f"            <summary>Custom Metadata ({len(custom_metadata)})</summary>\n"
+        )
+        html_parts.append(
+            _render_custom_properties(custom_metadata, "metadata-item", " " * 12)
+        )
+        html_parts.append("        </details>\n")
+
     html_parts.append("    </div>\n")
 
     # Processing steps
@@ -345,21 +407,24 @@ def generate_html_report(chain, include_bundles: bool = True) -> str:
 """)
 
     for step in steps:
-        step_id = step.get("step_id", "?")
+        step_id = _e(step.get("step_id", "?"))
         tool_info = step.get("tool", {})
-        tool_name = tool_info.get("name", "unknown")
-        tool_version = tool_info.get("version", "unknown")
-        tool_vendor = tool_info.get("vendor", "")
-        operation = step.get("operation", "unknown")
+        tool_name = _e(tool_info.get("name", "unknown"))
+        tool_version = _e(tool_info.get("version", "unknown"))
+        tool_vendor = _e(tool_info.get("vendor", ""))
+        operation = _e(step.get("operation", "unknown"))
 
         # Timing info
-        started_at = step.get("started_at", step.get("timestamp", "unknown"))
+        started_at = _e(step.get("started_at", step.get("timestamp", "unknown")))
         ended_at = step.get("ended_at")
         if ended_at is None:
             ended_at = step.get("timestamp", "In progress")
+        ended_at = _e(ended_at)
 
         # DRL
         drl = step.get("drl")
+        if drl is not None:
+            drl = _e(drl)
 
         # Agent
         agent = step.get("agent")
@@ -371,7 +436,7 @@ def generate_html_report(chain, include_bundles: bool = True) -> str:
                 <div class="step-title">Step {step_id}: {tool_name} v{tool_version}</div>
                 <div class="step-meta">Operation: {operation}</div>
             </div>
-            {"<span class='drl-badge'>DRL: " + str(drl) + "</span>" if drl is not None else ""}
+            {"<span class='drl-badge'>DRL: " + drl + "</span>" if drl is not None else ""}
         </div>
 """)
 
@@ -393,9 +458,9 @@ def generate_html_report(chain, include_bundles: bool = True) -> str:
 
         # Agent info
         if agent:
-            user = agent.get("user", "unknown")
-            hostname = agent.get("hostname", "unknown")
-            agent_type = agent.get("type", "unknown")
+            user = _e(agent.get("user", "unknown"))
+            hostname = _e(agent.get("hostname", "unknown"))
+            agent_type = _e(agent.get("type", "unknown"))
             html_parts.append(f"""
         <div class="agent-info">
             <strong>Executed by:</strong> {user} ({agent_type}) on {hostname}
@@ -411,7 +476,7 @@ def generate_html_report(chain, include_bundles: bool = True) -> str:
 """)
             for key, value in environment.items():
                 html_parts.append(
-                    f'            <span class="metadata-label">{key.replace("_", " ").title()}:</span> {value}<br>\n'
+                    f'            <span class="metadata-label">{_e(key.replace("_", " ").title())}:</span> {_e(value)}<br>\n'
                 )
             html_parts.append("        </div>\n")
 
@@ -420,14 +485,27 @@ def generate_html_report(chain, include_bundles: bool = True) -> str:
                 f'        <div class="metadata-item"><span class="metadata-label">Vendor:</span> {tool_vendor}</div>\n'
             )
 
+        # Custom properties of the activity and of the tool (agent)
+        for title, props in (
+            ("Custom Properties", step.get("custom_properties", {})),
+            ("Tool Properties", tool_info.get("custom_properties", {})),
+        ):
+            if props:
+                html_parts.append('        <div class="custom-props">\n')
+                html_parts.append(f"            <strong>{title}:</strong>\n")
+                html_parts.append(
+                    _render_custom_properties(props, "metadata-item", " " * 12)
+                )
+                html_parts.append("        </div>\n")
+
         # Inputs
         inputs = step.get("inputs", [])
         if inputs:
             html_parts.append('        <div class="files">\n')
             html_parts.append('            <div class="section-title">Inputs:</div>\n')
             for inp in inputs:
-                path = inp.get("path", "unknown")
-                fmt = inp.get("format", "unknown")
+                path = _e(inp.get("path", "unknown"))
+                fmt = _e(inp.get("format", "unknown"))
                 size = inp.get("size_bytes", 0)
                 checksum = inp.get("checksum", "")
 
@@ -451,8 +529,13 @@ def generate_html_report(chain, include_bundles: bool = True) -> str:
                 )
                 if checksum:
                     html_parts.append(
-                        f'                <div class="file-meta">Checksum: {checksum}</div>\n'
+                        f'                <div class="file-meta">Checksum: {_e(checksum)}</div>\n'
                     )
+                html_parts.append(
+                    _render_custom_properties(
+                        inp.get("custom_properties", {}), "file-meta", " " * 16
+                    )
+                )
 
                 # Show provenance info for this input if available
                 prov_file = inp.get("provenance_file")
@@ -460,11 +543,11 @@ def generate_html_report(chain, include_bundles: bool = True) -> str:
                     prov_checksum = inp.get("provenance_file_checksum", "")
                     html_parts.append('            <div class="provenance-info">\n')
                     html_parts.append(
-                        f'                <span class="prov-label">Provenance:</span> {prov_file}\n'
+                        f'                <span class="prov-label">Provenance:</span> {_e(prov_file)}\n'
                     )
                     if prov_checksum:
                         html_parts.append(
-                            f'                <div class="file-meta">Checksum: {prov_checksum}</div>\n'
+                            f'                <div class="file-meta">Checksum: {_e(prov_checksum)}</div>\n'
                         )
 
                     # If bundle data is available, render nested steps
@@ -486,8 +569,8 @@ def generate_html_report(chain, include_bundles: bool = True) -> str:
             html_parts.append('        <div class="files">\n')
             html_parts.append('            <div class="section-title">Outputs:</div>\n')
             for out in outputs:
-                path = out.get("path", "unknown")
-                fmt = out.get("format", "unknown")
+                path = _e(out.get("path", "unknown"))
+                fmt = _e(out.get("format", "unknown"))
                 size = out.get("size_bytes", 0)
                 checksum = out.get("checksum", "")
 
@@ -511,8 +594,13 @@ def generate_html_report(chain, include_bundles: bool = True) -> str:
                 )
                 if checksum:
                     html_parts.append(
-                        f'                <div class="file-meta">Checksum: {checksum}</div>\n'
+                        f'                <div class="file-meta">Checksum: {_e(checksum)}</div>\n'
                     )
+                html_parts.append(
+                    _render_custom_properties(
+                        out.get("custom_properties", {}), "file-meta", " " * 16
+                    )
+                )
                 html_parts.append("            </div>\n")
             html_parts.append("        </div>\n")
 
@@ -520,19 +608,19 @@ def generate_html_report(chain, include_bundles: bool = True) -> str:
         arguments = step.get("arguments", "")
         if arguments:
             html_parts.append('        <div class="section-title">Arguments:</div>\n')
-            html_parts.append(f'        <div class="arguments">{arguments}</div>\n')
+            html_parts.append(f'        <div class="arguments">{_e(arguments)}</div>\n')
 
         # Output log
         output_log = step.get("output_log", "")
         if output_log:
             html_parts.append('        <div class="section-title">Output Log:</div>\n')
-            html_parts.append(f'        <div class="log">{output_log}</div>\n')
+            html_parts.append(f'        <div class="log">{_e(output_log)}</div>\n')
 
         # Warnings
         warnings = step.get("warnings", "")
         if warnings:
             html_parts.append(
-                f'        <div class="warning"><strong>Warnings:</strong> {warnings}</div>\n'
+                f'        <div class="warning"><strong>Warnings:</strong> {_e(warnings)}</div>\n'
             )
 
         html_parts.append("    </div>\n")
@@ -562,6 +650,13 @@ Example:
 
     parser.add_argument(
         "--version", action="version", version=f"%(prog)s {__version__}"
+    )
+
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Suppress informational output (errors are still printed)",
     )
 
     parser.add_argument("input", help="Path to provenance JSON file")
@@ -607,7 +702,8 @@ Example:
         try:
             with open(args.output, "w") as f:
                 f.write(html_report)
-            print(f"HTML report written to {args.output}", file=sys.stderr)
+            if not args.quiet:
+                print(f"HTML report written to {args.output}", file=sys.stderr)
         except Exception as e:
             print(f"Error writing output file: {e}", file=sys.stderr)
             return 1

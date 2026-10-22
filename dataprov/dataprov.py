@@ -421,6 +421,60 @@ def _inline_provenance_files(prov_data: dict, mode: str) -> dict:
     return prov_data
 
 
+STANDARD_PREFIXES = {"dataprov", "prov", "xsd"}
+
+
+def _custom_properties(record: dict) -> dict[str, Any]:
+    """Extract custom ontology properties from a PROV-JSON record.
+
+    Args:
+        record: Dict with 'prefix:property' keys (e.g. an entity or activity)
+
+    Returns:
+        Dict of the properties whose namespace prefix is not a standard one
+        (dataprov, prov, xsd)
+    """
+    return {
+        key: value
+        for key, value in record.items()
+        if ":" in key and key.split(":", 1)[0] not in STANDARD_PREFIXES
+    }
+
+
+def _detect_format(file_path: str) -> str:
+    """Detect a file format from the file extension.
+
+    Args:
+        file_path: Path to the file
+
+    Returns:
+        str: Extension without the leading dot (e.g. "csv"), or "unknown" if none
+    """
+    return Path(file_path).suffix.lstrip(".") or "unknown"
+
+
+def _check_json_value(key: str, value: Any, what: str) -> None:
+    """Raise TypeError if a value cannot be saved as JSON.
+
+    Checking when the value is added avoids a failure in save(), possibly
+    at the end of a long-running process.
+
+    Args:
+        key: Key the value is stored under (used in the error message)
+        value: Value to check
+        what: Description of the value kind (used in the error message)
+
+    Raises:
+        TypeError: If the value is not JSON serializable
+    """
+    try:
+        json.dumps(value)
+    except (TypeError, ValueError) as e:
+        raise TypeError(
+            f"{what} '{key}' has a value that cannot be saved as JSON: {e}"
+        ) from e
+
+
 class ProvenanceChain:
     """W3C PROV-JSON provenance chain with dataprov extensions."""
 
@@ -476,6 +530,7 @@ class ProvenanceChain:
 
         Raises:
             ValueError: If property format is invalid or namespace prefix is undeclared
+            TypeError: If a property value cannot be saved as JSON
         """
         VALID_TARGETS = {"entity", "input-entity", "output-entity", "activity", "agent"}
         grouped = {}
@@ -505,6 +560,8 @@ class ProvenanceChain:
                     f"Declared prefixes: {list(self.namespaces.keys())}"
                 )
 
+            _check_json_value(key, value, "Custom property")
+
             # Group by target
             if target not in grouped:
                 grouped[target] = {}
@@ -517,7 +574,7 @@ class ProvenanceChain:
     def create(
         cls,
         entity_id: str,
-        initial_source: str,
+        initial_source: str | os.PathLike,
         description: str = "",
         tags: list[str] | None = None,
         custom_namespaces: dict[str, str] | None = None,
@@ -527,7 +584,7 @@ class ProvenanceChain:
 
         Args:
             entity_id: Unique identifier for the data entity
-            initial_source: Original source file or location of the data
+            initial_source: Original source file or location of the data (str or path-like)
             description: Human-readable description (optional)
             tags: Tags for categorizing or labeling the data (optional)
             custom_namespaces: Custom ontology namespaces as {prefix: URI} dict (optional)
@@ -540,9 +597,13 @@ class ProvenanceChain:
         Raises:
             ValueError: If custom namespace prefix conflicts with reserved prefixes or
                        if custom_metadata uses undeclared namespace prefix
+            TypeError: If a custom_metadata value cannot be saved as JSON
         """
+        # Accept path-like objects (e.g. pathlib.Path) and store them as strings
+        initial_source = os.fspath(initial_source)
+
         # Validate custom namespaces don't conflict with reserved ones
-        reserved_prefixes = {"dataprov", "prov", "xsd"}
+        reserved_prefixes = STANDARD_PREFIXES
         if custom_namespaces:
             for prefix in custom_namespaces:
                 if prefix in reserved_prefixes:
@@ -572,6 +633,7 @@ class ProvenanceChain:
                         f"Undeclared namespace prefix '{prefix}' in custom metadata key '{key}'. "
                         f"Declared prefixes: {list(prefixes.keys())}"
                     )
+                _check_json_value(key, custom_metadata[key], "Custom metadata")
 
         data = {
             "prefix": prefixes,
@@ -606,7 +668,7 @@ class ProvenanceChain:
         return cls(data)
 
     @classmethod
-    def load(cls, filepath: str) -> "ProvenanceChain":
+    def load(cls, filepath: str | os.PathLike) -> "ProvenanceChain":
         """Load existing provenance chain from file.
 
         Args:
@@ -628,7 +690,9 @@ class ProvenanceChain:
         return cls(data)
 
     @classmethod
-    def load_or_create(cls, filepath: str, **create_kwargs) -> "ProvenanceChain":
+    def load_or_create(
+        cls, filepath: str | os.PathLike, **create_kwargs
+    ) -> "ProvenanceChain":
         """Load existing chain or create new one if file doesn't exist.
 
         Args:
@@ -649,16 +713,18 @@ class ProvenanceChain:
         tool_name: str,
         tool_version: str,
         operation: str,
-        inputs: list[str],
-        input_formats: list[str],
-        outputs: list[str],
-        output_formats: list[str],
+        inputs: list[str | os.PathLike],
+        # input_formats, outputs and output_formats default to None so that the
+        # formats can be omitted; outputs is still required (checked below)
+        input_formats: list[str | None] | None = None,
+        outputs: list[str | os.PathLike] | None = None,
+        output_formats: list[str | None] | None = None,
         # Optional parameters
         source: str = "",
         arguments: str = "",
         output_log: str = "",
         warnings: str = "",
-        input_provenance_files: list[str | None] | None = None,
+        input_provenance_files: list[str | os.PathLike | None] | None = None,
         drl: int | None = None,
         derivation_map: dict[int, list[int]] | None = None,
         # Agent tracking (opt-in with auto-capture)
@@ -681,10 +747,13 @@ class ProvenanceChain:
             tool_name: Name of the tool that performed this step
             tool_version: Version of the tool
             operation: Semantic description of the operation performed
-            inputs: List of input file paths
-            input_formats: List of input file formats (same length as inputs)
-            outputs: List of output file paths
-            output_formats: List of output file formats (same length as outputs)
+            inputs: List of input file paths (str or path-like)
+            input_formats: List of input file formats (same length as inputs). Optional:
+                          if omitted, or for None entries, the format is detected
+                          from the file extension (e.g. "csv")
+            outputs: List of output file paths (str or path-like)
+            output_formats: List of output file formats (same length as outputs). Optional,
+                           auto-detected like input_formats
             source: Tool source or organization (optional)
             arguments: Command line arguments string (optional)
             output_log: Free-text output log from tool execution (optional)
@@ -711,7 +780,26 @@ class ProvenanceChain:
 
         Raises:
             ValueError: If custom property format is invalid or namespace prefix is undeclared
+            TypeError: If outputs is missing, a path is not str or path-like, or a
+                       custom property value cannot be saved as JSON
         """
+        if outputs is None:
+            raise TypeError("add() missing required argument: 'outputs'")
+
+        # Accept path-like objects (e.g. pathlib.Path) and store them as strings
+        inputs = [os.fspath(path) for path in inputs]
+        outputs = [os.fspath(path) for path in outputs]
+        if input_provenance_files is not None:
+            input_provenance_files = [
+                None if path is None else os.fspath(path)
+                for path in input_provenance_files
+            ]
+
+        if input_formats is None:
+            input_formats = [None] * len(inputs)
+        if output_formats is None:
+            output_formats = [None] * len(outputs)
+
         if len(inputs) != len(input_formats):
             print(
                 "Error: inputs and input_formats lists must have same length",
@@ -725,6 +813,16 @@ class ProvenanceChain:
                 file=sys.stderr,
             )
             return False
+
+        # Auto-detect file formats that were not provided
+        input_formats = [
+            _detect_format(path) if fmt is None else fmt
+            for path, fmt in zip(inputs, input_formats)
+        ]
+        output_formats = [
+            _detect_format(path) if fmt is None else fmt
+            for path, fmt in zip(outputs, output_formats)
+        ]
 
         # Validate provenance files lists if provided
         if input_provenance_files is not None and len(input_provenance_files) != len(
@@ -982,7 +1080,7 @@ class ProvenanceChain:
 
     def add_attribution(
         self,
-        files: str | list[str],
+        files: str | os.PathLike | list[str | os.PathLike],
         file_formats: str | list[str] | None = None,
         # Agent specification (exactly one required)
         agent_name: str | None = None,
@@ -1004,7 +1102,7 @@ class ProvenanceChain:
         ownership/responsibility for entities.
 
         Args:
-            files: Single file path or list of file paths to attribute
+            files: Single file path or list of file paths (str or path-like) to attribute
             file_formats: File format(s) - auto-detected from extension if not provided
             agent_name: Name of external agent (person or organization)
             agent_type: Type of agent ("prov:Person" or "prov:Organization")
@@ -1023,6 +1121,8 @@ class ProvenanceChain:
 
         Raises:
             ValueError: If custom property format is invalid or namespace prefix is undeclared
+            TypeError: If a path is not str or path-like, or a custom property value
+                       cannot be saved as JSON
 
         Examples:
             # Attribute to current user
@@ -1035,9 +1135,10 @@ class ProvenanceChain:
             # Multiple files
             chain.add_attribution(["data1.csv", "data2.csv"], agent_name="dr.smith@example.org")
         """
-        # Normalize to lists
-        if isinstance(files, str):
+        # Normalize to a list of strings (accepts path-like objects, e.g. pathlib.Path)
+        if isinstance(files, (str, os.PathLike)):
             files = [files]
+        files = [os.fspath(path) for path in files]
         if file_formats is None:
             file_formats = [None] * len(files)
         elif isinstance(file_formats, str):
@@ -1122,12 +1223,10 @@ class ProvenanceChain:
                 self.data["agent"][agent_id] = agent_data
 
         # Process each file
-        for _i, (file_path, file_format) in enumerate(
-            zip(files, file_formats, strict=True)
-        ):
+        for file_path, file_format in zip(files, file_formats):
             # Auto-detect file format if not provided
             if file_format is None:
-                file_format = Path(file_path).suffix.lstrip(".") or "unknown"
+                file_format = _detect_format(file_path)
 
             entity_id = f"entity:{file_path}"
 
@@ -1185,7 +1284,7 @@ class ProvenanceChain:
 
         return True
 
-    def save(self, filepath: str, input_prov: str = "reference"):
+    def save(self, filepath: str | os.PathLike, input_prov: str = "reference"):
         """Save provenance chain to file in PROV-JSON format.
 
         Args:
@@ -1210,14 +1309,20 @@ class ProvenanceChain:
         # Inline provenance files if requested
         save_data = _inline_provenance_files(save_data, input_prov)
 
+        # Serialize before opening the file, so that a serialization error
+        # leaves any existing file intact instead of truncating it
+        content = json.dumps(save_data, indent=2)
         with open(filepath, "w") as f:
-            json.dump(save_data, f, indent=2)
+            f.write(content)
 
     def get_steps(self) -> list[dict]:
         """Get all processing steps in the chain.
 
         Returns:
-            List[Dict]: List of all processing steps (activities) with their metadata
+            List[Dict]: List of all processing steps (activities) with their metadata.
+            Custom ontology properties, if any, are included as a 'custom_properties'
+            dict on the step (activity), its 'tool' (agent) and its inputs/outputs
+            (entities).
         """
         steps = []
         for activity_id, activity in self.data.get("activity", {}).items():
@@ -1244,6 +1349,9 @@ class ProvenanceChain:
                         "checksum": entity.get("dataprov:checksum"),
                         "size_bytes": entity.get("dataprov:sizeBytes"),
                     }
+                    custom = _custom_properties(entity)
+                    if custom:
+                        input_info["custom_properties"] = custom
 
                     # Include provenance file reference if present
                     if "dataprov:hadProvenance" in usage:
@@ -1279,14 +1387,16 @@ class ProvenanceChain:
                 if gen["prov:activity"] == activity_id:
                     entity_id = gen["prov:entity"]
                     entity = self.data["entity"].get(entity_id, {})
-                    outputs.append(
-                        {
-                            "path": entity_id.replace("entity:", ""),
-                            "format": entity.get("dataprov:format"),
-                            "checksum": entity.get("dataprov:checksum"),
-                            "size_bytes": entity.get("dataprov:sizeBytes"),
-                        }
-                    )
+                    output_info = {
+                        "path": entity_id.replace("entity:", ""),
+                        "format": entity.get("dataprov:format"),
+                        "checksum": entity.get("dataprov:checksum"),
+                        "size_bytes": entity.get("dataprov:sizeBytes"),
+                    }
+                    custom = _custom_properties(entity)
+                    if custom:
+                        output_info["custom_properties"] = custom
+                    outputs.append(output_info)
 
             step = {
                 "step_id": step_num,
@@ -1312,6 +1422,15 @@ class ProvenanceChain:
             if "dataprov:drl" in activity:
                 step["drl"] = activity["dataprov:drl"]
 
+            # Include custom ontology properties of the activity and tool agent
+            custom = _custom_properties(activity)
+            if custom:
+                step["custom_properties"] = custom
+            if tool_agent:
+                custom = _custom_properties(tool_agent)
+                if custom:
+                    step["tool"]["custom_properties"] = custom
+
             # Include agent information if present
             if tool_agent:
                 if "dataprov:user" in tool_agent:
@@ -1336,6 +1455,15 @@ class ProvenanceChain:
         # Sort by step_id
         steps.sort(key=lambda s: s["step_id"])
         return steps
+
+    def get_custom_metadata(self) -> dict[str, Any]:
+        """Get the custom top-level metadata of the chain.
+
+        Returns:
+            Dict[str, Any]: The custom_metadata given to create(), as
+            {'namespace:property': value}
+        """
+        return _custom_properties(self.data)
 
     def get_step(self, step_id: int) -> dict | None:
         """Get a specific step by ID.

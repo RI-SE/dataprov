@@ -55,6 +55,13 @@ Examples:
         "--version", action="version", version=f"%(prog)s {__version__}"
     )
 
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Suppress informational output (errors are still printed)",
+    )
+
     # All arguments as flags
     parser.add_argument(
         "-s",
@@ -146,19 +153,23 @@ Examples:
         # Save to output file
         chain.save(str(output_path))
 
-        # Success message
-        print(f"Created new provenance chain: {args.output}")
-        print(f"  Entity ID: {args.entity_id}")
-        print(f"  Initial source: {args.initial_source}")
-        if args.description:
-            print(f"  Description: {args.description}")
-        if tags:
-            print(f"  Tags: {', '.join(tags)}")
+        if args.quiet:
+            return 0
 
-        print("\nNext steps:")
-        print("  1. Run your first processing tool")
+        # Success message
+        print(f"Created new provenance chain: {args.output}", file=sys.stderr)
+        print(f"  Entity ID: {args.entity_id}", file=sys.stderr)
+        print(f"  Initial source: {args.initial_source}", file=sys.stderr)
+        if args.description:
+            print(f"  Description: {args.description}", file=sys.stderr)
+        if tags:
+            print(f"  Tags: {', '.join(tags)}", file=sys.stderr)
+
+        print("\nNext steps:", file=sys.stderr)
+        print("  1. Run your first processing tool", file=sys.stderr)
         print(
-            "  2. Use chain.add() to record the processing step with actual input files"
+            "  2. Record the processing step with dataprov-add (or chain.add() in Python)",
+            file=sys.stderr,
         )
 
         return 0

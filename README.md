@@ -779,6 +779,13 @@ with open("provenance.dot", "w") as f:
 
 ## CLI Tools
 
+All CLI tools support these options:
+
+- `--version`: Print the dataprov version and exit
+- `-q`, `--quiet`: Suppress informational output, e.g. when called from scripts (errors are still printed, and the exit code is unchanged)
+
+Informational messages are written to stderr, so stdout only carries data output (e.g. the DOT graph or HTML report when no `-o` is given).
+
 ### dataprov-new
 
 Create a new provenance chain file:
@@ -847,6 +854,15 @@ dataprov-add -p provenance.json \
 ```
 
 Omit `--ended-at` for steps that are still ongoing or whose end time is not yet known.
+
+`--input-formats` and `--output-formats` are optional; when omitted, formats are detected from the file extensions (e.g. `output.csv` → `csv`):
+
+```bash
+dataprov-add -p provenance.json \
+    --started-at "2024-10-15T11:00:00Z" --ended-at "2024-10-15T11:05:30Z" \
+    --tool-name my_tool --tool-version 1.0 --operation processing \
+    -i input.csv --outputs output.csv
+```
 
 ### dataprov-visualize
 
@@ -919,6 +935,7 @@ The HTML report includes:
 - Agent/user information per step
 - Environment information per step
 - File checksums and sizes
+- Custom metadata (collapsible section) and custom properties of steps, tools and input/output files
 - Nested provenance bundles for inputs (showing how input files were created)
 - Interactive styling
 
@@ -933,7 +950,7 @@ The HTML report includes:
 Create a new provenance chain.
 
 - `entity_id` (str): Unique identifier for the data entity
-- `initial_source` (str): Original source file or location
+- `initial_source` (str or Path): Original source file or location
 - `description` (str, optional): Human-readable description
 - `tags` (list, optional): Tags for categorizing the data
 - `custom_namespaces` (dict, optional): Custom ontology namespaces as {prefix: URI} dict
@@ -941,11 +958,13 @@ Create a new provenance chain.
 
 Returns: `ProvenanceChain` instance
 
+Raises `TypeError` if a `custom_metadata` value cannot be saved as JSON.
+
 **`load(filepath)`**
 
 Load an existing provenance chain from a JSON file.
 
-- `filepath` (str): Path to the provenance JSON file
+- `filepath` (str or Path): Path to the provenance JSON file
 
 Returns: `ProvenanceChain` instance
 
@@ -953,7 +972,7 @@ Returns: `ProvenanceChain` instance
 
 Load existing chain or create new one if file doesn't exist.
 
-- `filepath` (str): Path to the provenance JSON file
+- `filepath` (str or Path): Path to the provenance JSON file
 - `**create_kwargs`: Arguments for `create()` if file doesn't exist
 
 Returns: `ProvenanceChain` instance
@@ -970,17 +989,17 @@ Required parameters:
 - `tool_name` (str): Name of the tool
 - `tool_version` (str): Version of the tool
 - `operation` (str): Description of the operation
-- `inputs` (list): Input file paths
-- `input_formats` (list): Input file formats
-- `outputs` (list): Output file paths
-- `output_formats` (list): Output file formats
+- `inputs` (list): Input file paths (str or Path)
+- `outputs` (list): Output file paths (str or Path)
 
 Optional parameters:
+- `input_formats` (list): Input file formats, same length as `inputs`. If omitted (or for `None` entries), the format is detected from the file extension, e.g. `data.csv` → `"csv"` (`"unknown"` if there is no extension)
+- `output_formats` (list): Output file formats, auto-detected like `input_formats`
 - `source` (str): Tool source or organization
 - `arguments` (str): Command line arguments
 - `output_log` (str): Tool execution log output
 - `warnings` (str): Warning messages
-- `input_provenance_files` (list): Provenance files for inputs (checksums calculated automatically)
+- `input_provenance_files` (list): Provenance files for inputs, str or Path (checksums calculated automatically)
 - `drl` (int): Data Readiness Level (0-9)
 - `derivation_map` (dict): Precise input-output mapping {input_idx: [output_indices]} (default: None = all-to-all)
 - `capture_agent` (bool): Capture user/system info (default: False)
@@ -995,12 +1014,14 @@ Optional parameters:
 
 Returns: `bool` - True if successful, False otherwise
 
+Raises `TypeError` if a `custom_properties` value cannot be saved as JSON, so the problem is reported when the step is added rather than at `save()`.
+
 **`add_attribution(files, file_formats=None, agent_name=None, agent_type="prov:Person", capture_current_user=False, **optional)`**
 
 Add attribution relationships (wasAttributedTo) for files without requiring a computational activity.
 
 Required parameters (specify exactly one agent option):
-- `files` (str or list): Single file path or list of file paths to attribute
+- `files` (str, Path or list): Single file path or list of file paths to attribute
 - `agent_name` (str): Name of external agent (person or organization) - mutually exclusive with `capture_current_user`
 - `capture_current_user` (bool): If True, attribute to current user - mutually exclusive with `agent_name`
 
@@ -1021,7 +1042,7 @@ Returns: `bool` - True if successful, False otherwise
 
 Save the provenance chain to a JSON file.
 
-- `filepath` (str): Path where to save the file
+- `filepath` (str or Path): Path where to save the file
 - `input_prov` (str): How to handle input provenance files: "reference" (default), "inline", or "both"
   - `"reference"`: Keep file paths as-is (default)
   - `"inline"`: Embed provenance files into a single JSON
@@ -1031,7 +1052,13 @@ Save the provenance chain to a JSON file.
 
 Get all processing steps in the chain.
 
-Returns: `list` - All processing steps
+Returns: `list` - All processing steps. Custom properties, if any, are included as a `custom_properties` dict on the step (activity), on its `tool` (agent), and on each entry in `inputs`/`outputs` (entities). An entity's custom properties are those set when it was first recorded, i.e. a file used by several steps shows the properties from the step that first added it.
+
+**`get_custom_metadata()`**
+
+Get the custom top-level metadata given as `custom_metadata` to `create()`.
+
+Returns: `dict` - `{namespace:property: value}` (empty if none)
 
 **`get_step(step_id)`**
 
