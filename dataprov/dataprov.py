@@ -421,6 +421,18 @@ def _inline_provenance_files(prov_data: dict, mode: str) -> dict:
     return prov_data
 
 
+def _detect_format(file_path: str) -> str:
+    """Detect a file format from the file extension.
+
+    Args:
+        file_path: Path to the file
+
+    Returns:
+        str: Extension without the leading dot (e.g. "csv"), or "unknown" if none
+    """
+    return Path(file_path).suffix.lstrip(".") or "unknown"
+
+
 def _check_json_value(key: str, value: Any, what: str) -> None:
     """Raise TypeError if a value cannot be saved as JSON.
 
@@ -682,9 +694,11 @@ class ProvenanceChain:
         tool_version: str,
         operation: str,
         inputs: list[str | os.PathLike],
-        input_formats: list[str],
-        outputs: list[str | os.PathLike],
-        output_formats: list[str],
+        # input_formats, outputs and output_formats default to None so that the
+        # formats can be omitted; outputs is still required (checked below)
+        input_formats: list[str | None] | None = None,
+        outputs: list[str | os.PathLike] | None = None,
+        output_formats: list[str | None] | None = None,
         # Optional parameters
         source: str = "",
         arguments: str = "",
@@ -714,9 +728,12 @@ class ProvenanceChain:
             tool_version: Version of the tool
             operation: Semantic description of the operation performed
             inputs: List of input file paths (str or path-like)
-            input_formats: List of input file formats (same length as inputs)
+            input_formats: List of input file formats (same length as inputs). Optional:
+                          if omitted, or for None entries, the format is detected
+                          from the file extension (e.g. "csv")
             outputs: List of output file paths (str or path-like)
-            output_formats: List of output file formats (same length as outputs)
+            output_formats: List of output file formats (same length as outputs). Optional,
+                           auto-detected like input_formats
             source: Tool source or organization (optional)
             arguments: Command line arguments string (optional)
             output_log: Free-text output log from tool execution (optional)
@@ -743,9 +760,12 @@ class ProvenanceChain:
 
         Raises:
             ValueError: If custom property format is invalid or namespace prefix is undeclared
-            TypeError: If a path is not str or path-like, or a custom property value
-                       cannot be saved as JSON
+            TypeError: If outputs is missing, a path is not str or path-like, or a
+                       custom property value cannot be saved as JSON
         """
+        if outputs is None:
+            raise TypeError("add() missing required argument: 'outputs'")
+
         # Accept path-like objects (e.g. pathlib.Path) and store them as strings
         inputs = [os.fspath(path) for path in inputs]
         outputs = [os.fspath(path) for path in outputs]
@@ -754,6 +774,11 @@ class ProvenanceChain:
                 None if path is None else os.fspath(path)
                 for path in input_provenance_files
             ]
+
+        if input_formats is None:
+            input_formats = [None] * len(inputs)
+        if output_formats is None:
+            output_formats = [None] * len(outputs)
 
         if len(inputs) != len(input_formats):
             print(
@@ -768,6 +793,16 @@ class ProvenanceChain:
                 file=sys.stderr,
             )
             return False
+
+        # Auto-detect file formats that were not provided
+        input_formats = [
+            _detect_format(path) if fmt is None else fmt
+            for path, fmt in zip(inputs, input_formats)
+        ]
+        output_formats = [
+            _detect_format(path) if fmt is None else fmt
+            for path, fmt in zip(outputs, output_formats)
+        ]
 
         # Validate provenance files lists if provided
         if input_provenance_files is not None and len(input_provenance_files) != len(
@@ -1168,12 +1203,10 @@ class ProvenanceChain:
                 self.data["agent"][agent_id] = agent_data
 
         # Process each file
-        for _i, (file_path, file_format) in enumerate(
-            zip(files, file_formats, strict=True)
-        ):
+        for file_path, file_format in zip(files, file_formats):
             # Auto-detect file format if not provided
             if file_format is None:
-                file_format = Path(file_path).suffix.lstrip(".") or "unknown"
+                file_format = _detect_format(file_path)
 
             entity_id = f"entity:{file_path}"
 

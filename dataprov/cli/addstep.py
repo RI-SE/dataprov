@@ -73,6 +73,12 @@ Examples:
     -i input.csv --input-formats CSV \\
     --outputs output.csv --output-formats CSV
 
+  # Formats detected from file extensions (here: csv)
+  dataprov-add -p provenance.json \\
+    --started-at "2024-10-15T11:00:00Z" --ended-at "2024-10-15T11:05:30Z" \\
+    --tool-name my_tool --tool-version 1.0 --operation processing \\
+    -i input.csv --outputs output.csv
+
   # Multiple inputs/outputs
   dataprov-add -p provenance.json \\
     --started-at "2024-10-15T12:00:00Z" --ended-at "2024-10-15T12:10:00Z" \\
@@ -144,10 +150,10 @@ Examples:
 
     parser.add_argument(
         "--input-formats",
-        required=True,
         nargs="+",
         metavar="FORMAT",
-        help="File formats for each input (e.g. MP4 CSV TXT) — must match number of inputs",
+        help="File formats for each input (e.g. MP4 CSV TXT) — must match number of inputs"
+        " (default: detected from file extensions)",
     )
 
     parser.add_argument(
@@ -160,10 +166,10 @@ Examples:
 
     parser.add_argument(
         "--output-formats",
-        required=True,
         nargs="+",
         metavar="FORMAT",
-        help="File formats for each output — must match number of outputs",
+        help="File formats for each output — must match number of outputs"
+        " (default: detected from file extensions)",
     )
 
     # Optional step metadata
@@ -280,8 +286,8 @@ Examples:
         )
         return 1
 
-    # Validate format list lengths
-    if len(args.inputs) != len(args.input_formats):
+    # Validate format list lengths (formats are auto-detected when omitted)
+    if args.input_formats is not None and len(args.inputs) != len(args.input_formats):
         print(
             f"Error: Number of --input-formats ({len(args.input_formats)}) must match"
             f" number of --inputs ({len(args.inputs)})",
@@ -289,7 +295,9 @@ Examples:
         )
         return 1
 
-    if len(args.outputs) != len(args.output_formats):
+    if args.output_formats is not None and len(args.outputs) != len(
+        args.output_formats
+    ):
         print(
             f"Error: Number of --output-formats ({len(args.output_formats)}) must match"
             f" number of --outputs ({len(args.outputs)})",

@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `add()` detects file formats from file extensions when `input_formats`/`output_formats`
+  are omitted or contain `None` entries, like `add_attribution()` already did; in
+  `dataprov-add`, `--input-formats`/`--output-formats` are now optional (#12)
 - `-q`/`--quiet` option for all CLI tools to suppress informational output; errors are
   still printed (#13)
 - `create()`, `add()`, `add_attribution()`, `load()` and `save()` accept path-like objects
@@ -24,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `add_attribution()` failed on Python 3.8 and 3.9 (used `zip(strict=True)`, which needs
+  Python 3.10)
 - `save()` no longer truncates an existing provenance file when serialization fails (#11)
 
 ### Security

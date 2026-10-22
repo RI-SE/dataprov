@@ -3776,3 +3776,140 @@ class TestCLIQuiet:
         assert out_file.exists()
         assert captured.out == ""
         assert captured.err == ""
+
+
+class TestFormatAutoDetection:
+    """Tests for automatic file format detection in add() and dataprov-add."""
+
+    def _files(self, tmp_path, *names):
+        paths = []
+        for name in names:
+            path = tmp_path / name
+            path.write_text("data")
+            paths.append(str(path))
+        return paths
+
+    def _add(self, chain, timestamps, **kwargs):
+        return chain.add(
+            started_at=timestamps["started_at"],
+            ended_at=timestamps["ended_at"],
+            tool_name="tool",
+            tool_version="1.0",
+            operation="op",
+            **kwargs,
+        )
+
+    def test_formats_omitted(self, tmp_path, timestamps):
+        """Formats are detected from extensions when omitted."""
+        in_csv, out_json = self._files(tmp_path, "in.csv", "out.json")
+        chain = ProvenanceChain.create(entity_id="e", initial_source="/test/")
+
+        assert self._add(chain, timestamps, inputs=[in_csv], outputs=[out_json])
+
+        step = chain.get_steps()[0]
+        assert step["inputs"][0]["format"] == "csv"
+        assert step["outputs"][0]["format"] == "json"
+
+    def test_partial_formats(self, tmp_path, timestamps):
+        """None entries are detected, explicit formats are kept."""
+        a, b, out = self._files(tmp_path, "a.csv", "b.tsv", "out.mp4")
+        chain = ProvenanceChain.create(entity_id="e", initial_source="/test/")
+
+        assert self._add(
+            chain,
+            timestamps,
+            inputs=[a, b],
+            input_formats=["CSV", None],
+            outputs=[out],
+            output_formats=[None],
+        )
+
+        step = chain.get_steps()[0]
+        assert [i["format"] for i in step["inputs"]] == ["CSV", "tsv"]
+        assert step["outputs"][0]["format"] == "mp4"
+
+    def test_no_extension_is_unknown(self, tmp_path, timestamps):
+        """A file without extension gets format 'unknown'."""
+        in_file, out_file = self._files(tmp_path, "README", "result")
+        chain = ProvenanceChain.create(entity_id="e", initial_source="/test/")
+
+        assert self._add(chain, timestamps, inputs=[in_file], outputs=[out_file])
+
+        step = chain.get_steps()[0]
+        assert step["inputs"][0]["format"] == "unknown"
+        assert step["outputs"][0]["format"] == "unknown"
+
+    def test_outputs_still_required(self, tmp_path, timestamps):
+        """Omitting outputs raises TypeError like a missing argument."""
+        (in_file,) = self._files(tmp_path, "in.csv")
+        chain = ProvenanceChain.create(entity_id="e", initial_source="/test/")
+
+        with pytest.raises(TypeError, match="outputs"):
+            self._add(chain, timestamps, inputs=[in_file])
+
+    def test_explicit_format_length_mismatch(self, tmp_path, timestamps):
+        """An explicit format list of the wrong length is still rejected."""
+        a, b = self._files(tmp_path, "a.csv", "b.csv")
+        chain = ProvenanceChain.create(entity_id="e", initial_source="/test/")
+
+        assert (
+            self._add(
+                chain, timestamps, inputs=[a, b], input_formats=["CSV"], outputs=[a]
+            )
+            is False
+        )
+
+    def test_positional_call_still_works(self, tmp_path, timestamps):
+        """The original positional argument order is unchanged."""
+        in_file, out_file = self._files(tmp_path, "in.txt", "out.txt")
+        chain = ProvenanceChain.create(entity_id="e", initial_source="/test/")
+
+        assert chain.add(
+            timestamps["started_at"],
+            timestamps["ended_at"],
+            "tool",
+            "1.0",
+            "op",
+            [in_file],
+            ["TXT"],
+            [out_file],
+            ["TXT"],
+        )
+        assert chain.get_steps()[0]["outputs"][0]["format"] == "TXT"
+
+    def test_cli_without_formats(self, monkeypatch, tmp_path, capsys):
+        """dataprov-add works without --input-formats/--output-formats."""
+        import sys
+
+        from dataprov.cli.addstep import main
+
+        in_csv, out_parquet = self._files(tmp_path, "in.csv", "out.parquet")
+        prov_file = tmp_path / "prov.json"
+        ProvenanceChain.create(entity_id="e", initial_source="/test/").save(prov_file)
+
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "dataprov-add",
+                "-p",
+                str(prov_file),
+                "--started-at",
+                "2024-10-15T11:00:00Z",
+                "--tool-name",
+                "tool",
+                "--tool-version",
+                "1.0",
+                "--operation",
+                "op",
+                "-i",
+                in_csv,
+                "--outputs",
+                out_parquet,
+            ],
+        )
+        assert main() == 0
+
+        step = ProvenanceChain.load(prov_file).get_steps()[0]
+        assert step["inputs"][0]["format"] == "csv"
+        assert step["outputs"][0]["format"] == "parquet"

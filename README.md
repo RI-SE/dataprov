@@ -855,6 +855,15 @@ dataprov-add -p provenance.json \
 
 Omit `--ended-at` for steps that are still ongoing or whose end time is not yet known.
 
+`--input-formats` and `--output-formats` are optional; when omitted, formats are detected from the file extensions (e.g. `output.csv` → `csv`):
+
+```bash
+dataprov-add -p provenance.json \
+    --started-at "2024-10-15T11:00:00Z" --ended-at "2024-10-15T11:05:30Z" \
+    --tool-name my_tool --tool-version 1.0 --operation processing \
+    -i input.csv --outputs output.csv
+```
+
 ### dataprov-visualize
 
 Generate GraphViz DOT visualization:
@@ -980,11 +989,11 @@ Required parameters:
 - `tool_version` (str): Version of the tool
 - `operation` (str): Description of the operation
 - `inputs` (list): Input file paths (str or Path)
-- `input_formats` (list): Input file formats
 - `outputs` (list): Output file paths (str or Path)
-- `output_formats` (list): Output file formats
 
 Optional parameters:
+- `input_formats` (list): Input file formats, same length as `inputs`. If omitted (or for `None` entries), the format is detected from the file extension, e.g. `data.csv` → `"csv"` (`"unknown"` if there is no extension)
+- `output_formats` (list): Output file formats, auto-detected like `input_formats`
 - `source` (str): Tool source or organization
 - `arguments` (str): Command line arguments
 - `output_log` (str): Tool execution log output
