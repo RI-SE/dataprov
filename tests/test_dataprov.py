@@ -3418,3 +3418,95 @@ class TestCLIAddStep:
 
         chain = ProvenanceChain.load(str(prov_file))
         assert len(chain.get_steps()) == 3
+
+
+class TestHTMLReportEscaping:
+    """Test that the HTML report escapes values from the provenance file."""
+
+    PAYLOAD = '<script>alert("x")</script>'
+
+    def _malicious_chain(self, tmp_path, timestamps):
+        """Build a chain where every rendered field contains an HTML payload."""
+        p = self.PAYLOAD
+        chain = ProvenanceChain.create(
+            entity_id=p, initial_source=p, description=p, tags=[p]
+        )
+        chain.add(
+            started_at=timestamps["started_at"],
+            ended_at=timestamps["ended_at"],
+            tool_name=p,
+            tool_version=p,
+            operation=p,
+            inputs=[str(tmp_path / f"in{p}.txt")],
+            input_formats=[p],
+            outputs=[str(tmp_path / f"out{p}.txt")],
+            output_formats=[p],
+            arguments=p,
+            output_log=p,
+            warnings=p,
+            capture_agent=True,
+            user=p,
+            hostname=p,
+            capture_environment=True,
+            runtime=p,
+            runtime_version=p,
+        )
+
+        # Values a hand-crafted or third-party file could contain
+        chain.data["dataprov:metadata"]["version"] = p
+        activity = next(iter(chain.data["activity"].values()))
+        activity["dataprov:drl"] = p
+        usage = next(iter(chain.data["used"].values()))
+        usage["dataprov:hadProvenance"] = "bundle:x"
+        chain.data["entity"]["bundle:x"] = {
+            "prov:type": "prov:Bundle",
+            "dataprov:bundleChecksum": p,
+        }
+        chain.data["bundle"] = {
+            "bundle:x": {
+                "activity": {"activity:step_1": {"dataprov:operation": p}},
+                "agent": {"agent:a": {"dataprov:toolName": p}},
+                "wasAssociatedWith": {
+                    "_:assoc_1": {
+                        "prov:activity": "activity:step_1",
+                        "prov:agent": "agent:a",
+                    }
+                },
+                "used": {"_:u": {"prov:activity": "activity:step_1", "prov:entity": p}},
+                "wasGeneratedBy": {
+                    "_:g": {"prov:activity": "activity:step_1", "prov:entity": p}
+                },
+            }
+        }
+        return chain
+
+    def test_report_escapes_all_values(self, tmp_path, timestamps):
+        """No value from the provenance data is emitted as raw HTML."""
+        from dataprov.cli.report import generate_html_report
+
+        report = generate_html_report(self._malicious_chain(tmp_path, timestamps))
+
+        assert "<script" not in report
+        assert "&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;" in report
+
+    def test_nested_bundle_escaped(self):
+        """Nested bundle rendering escapes the bundle ID and its contents."""
+        from dataprov.cli.report import _render_nested_bundle
+
+        p = self.PAYLOAD
+        html = _render_nested_bundle(
+            p, {"activity": {"activity:step_1": {"dataprov:operation": p}}}
+        )
+
+        assert "<script" not in html
+        assert "&lt;script&gt;" in html
+
+    def test_plain_values_unchanged(self, sample_provenance_chain):
+        """Ordinary values render as before."""
+        from dataprov.cli.report import generate_html_report
+
+        chain = ProvenanceChain.load(str(sample_provenance_chain))
+        report = generate_html_report(chain)
+
+        assert "<strong>fixture_chain</strong>" in report
+        assert '<span class="tag">fixture</span>' in report
