@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `dataprov-report` shows custom metadata (collapsible section) and the custom properties of
+  steps, tools and input/output files (#10)
+- `get_steps()` includes custom properties as `custom_properties` on steps, tools and
+  inputs/outputs, and the new `get_custom_metadata()` returns the custom top-level metadata (#10)
 - `add()` detects file formats from file extensions when `input_formats`/`output_formats`
   are omitted or contain `None` entries, like `add_attribution()` already did; in
   `dataprov-add`, `--input-formats`/`--output-formats` are now optional (#12)

@@ -3913,3 +3913,103 @@ class TestFormatAutoDetection:
         step = ProvenanceChain.load(prov_file).get_steps()[0]
         assert step["inputs"][0]["format"] == "csv"
         assert step["outputs"][0]["format"] == "parquet"
+
+
+class TestCustomPropertiesInReport:
+    """Tests for custom metadata/properties in get_steps() and the HTML report."""
+
+    def _chain(self, tmp_path, timestamps):
+        in_file = tmp_path / "in.csv"
+        in_file.write_text("a\n1\n1\n")
+        out_file = tmp_path / "out.csv"
+        out_file.write_text("a\n1\n")
+        chain = ProvenanceChain.create(
+            entity_id="e",
+            initial_source="/test/",
+            custom_namespaces={"ex": "https://example.org/ns#"},
+            custom_metadata={
+                "ex:operationClass": "operation_3695",
+                "ex:project": {"id": "P-1", "funded": True},
+            },
+        )
+        chain.add(
+            started_at=timestamps["started_at"],
+            ended_at=timestamps["ended_at"],
+            tool_name="pandas",
+            tool_version="2.2",
+            operation="dedup",
+            inputs=[in_file],
+            outputs=[out_file],
+            custom_properties={
+                "activity:ex:rowsRemoved": 1,
+                "input-entity:ex:rowCount": 2,
+                "output-entity:ex:rowCount": 1,
+                "agent:ex:license": "<BSD>",
+            },
+        )
+        return chain
+
+    def test_get_custom_metadata(self, tmp_path, timestamps):
+        """get_custom_metadata() returns only the custom top-level keys."""
+        chain = self._chain(tmp_path, timestamps)
+        assert chain.get_custom_metadata() == {
+            "ex:operationClass": "operation_3695",
+            "ex:project": {"id": "P-1", "funded": True},
+        }
+
+    def test_get_steps_custom_properties(self, tmp_path, timestamps):
+        """get_steps() includes custom properties of activity, tool and entities."""
+        step = self._chain(tmp_path, timestamps).get_steps()[0]
+
+        assert step["custom_properties"] == {"ex:rowsRemoved": 1}
+        assert step["tool"]["custom_properties"] == {"ex:license": "<BSD>"}
+        assert step["inputs"][0]["custom_properties"] == {"ex:rowCount": 2}
+        assert step["outputs"][0]["custom_properties"] == {"ex:rowCount": 1}
+
+    def test_get_steps_without_custom_properties(self, sample_file, timestamps):
+        """Without custom properties, get_steps() has no custom_properties keys."""
+        chain = ProvenanceChain.create(entity_id="e", initial_source="/test/")
+        chain.add(
+            started_at=timestamps["started_at"],
+            ended_at=timestamps["ended_at"],
+            tool_name="t",
+            tool_version="1",
+            operation="op",
+            inputs=[sample_file],
+            outputs=[sample_file],
+        )
+        step = chain.get_steps()[0]
+
+        assert chain.get_custom_metadata() == {}
+        assert "custom_properties" not in step
+        assert "custom_properties" not in step["tool"]
+        assert "custom_properties" not in step["inputs"][0]
+
+    def test_report_shows_custom_data(self, tmp_path, timestamps):
+        """The report renders custom metadata and properties, escaped."""
+        from dataprov.cli.report import generate_html_report
+
+        report = generate_html_report(self._chain(tmp_path, timestamps))
+
+        assert '<details class="custom-metadata">' in report
+        assert "Custom Metadata (2)" in report
+        assert "ex:operationClass:</span> operation_3695" in report
+        # Non-string values are shown as JSON
+        assert (
+            "ex:project:</span> {&quot;id&quot;: &quot;P-1&quot;, &quot;funded&quot;: true}"
+            in report
+        )
+        assert "ex:rowsRemoved:</span> 1" in report
+        assert "Tool Properties" in report
+        assert "ex:license:</span> &lt;BSD&gt;" in report
+        assert "ex:rowCount:</span> 2" in report
+        assert "ex:rowCount:</span> 1" in report
+
+    def test_report_without_custom_data(self, sample_provenance_chain):
+        """Reports without custom data have no custom sections."""
+        from dataprov.cli.report import generate_html_report
+
+        report = generate_html_report(ProvenanceChain.load(sample_provenance_chain))
+
+        assert "<details" not in report
+        assert '<div class="custom-props">' not in report

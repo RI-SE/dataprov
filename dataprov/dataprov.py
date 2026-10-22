@@ -421,6 +421,26 @@ def _inline_provenance_files(prov_data: dict, mode: str) -> dict:
     return prov_data
 
 
+STANDARD_PREFIXES = {"dataprov", "prov", "xsd"}
+
+
+def _custom_properties(record: dict) -> dict[str, Any]:
+    """Extract custom ontology properties from a PROV-JSON record.
+
+    Args:
+        record: Dict with 'prefix:property' keys (e.g. an entity or activity)
+
+    Returns:
+        Dict of the properties whose namespace prefix is not a standard one
+        (dataprov, prov, xsd)
+    """
+    return {
+        key: value
+        for key, value in record.items()
+        if ":" in key and key.split(":", 1)[0] not in STANDARD_PREFIXES
+    }
+
+
 def _detect_format(file_path: str) -> str:
     """Detect a file format from the file extension.
 
@@ -583,7 +603,7 @@ class ProvenanceChain:
         initial_source = os.fspath(initial_source)
 
         # Validate custom namespaces don't conflict with reserved ones
-        reserved_prefixes = {"dataprov", "prov", "xsd"}
+        reserved_prefixes = STANDARD_PREFIXES
         if custom_namespaces:
             for prefix in custom_namespaces:
                 if prefix in reserved_prefixes:
@@ -1299,7 +1319,10 @@ class ProvenanceChain:
         """Get all processing steps in the chain.
 
         Returns:
-            List[Dict]: List of all processing steps (activities) with their metadata
+            List[Dict]: List of all processing steps (activities) with their metadata.
+            Custom ontology properties, if any, are included as a 'custom_properties'
+            dict on the step (activity), its 'tool' (agent) and its inputs/outputs
+            (entities).
         """
         steps = []
         for activity_id, activity in self.data.get("activity", {}).items():
@@ -1326,6 +1349,9 @@ class ProvenanceChain:
                         "checksum": entity.get("dataprov:checksum"),
                         "size_bytes": entity.get("dataprov:sizeBytes"),
                     }
+                    custom = _custom_properties(entity)
+                    if custom:
+                        input_info["custom_properties"] = custom
 
                     # Include provenance file reference if present
                     if "dataprov:hadProvenance" in usage:
@@ -1361,14 +1387,16 @@ class ProvenanceChain:
                 if gen["prov:activity"] == activity_id:
                     entity_id = gen["prov:entity"]
                     entity = self.data["entity"].get(entity_id, {})
-                    outputs.append(
-                        {
-                            "path": entity_id.replace("entity:", ""),
-                            "format": entity.get("dataprov:format"),
-                            "checksum": entity.get("dataprov:checksum"),
-                            "size_bytes": entity.get("dataprov:sizeBytes"),
-                        }
-                    )
+                    output_info = {
+                        "path": entity_id.replace("entity:", ""),
+                        "format": entity.get("dataprov:format"),
+                        "checksum": entity.get("dataprov:checksum"),
+                        "size_bytes": entity.get("dataprov:sizeBytes"),
+                    }
+                    custom = _custom_properties(entity)
+                    if custom:
+                        output_info["custom_properties"] = custom
+                    outputs.append(output_info)
 
             step = {
                 "step_id": step_num,
@@ -1394,6 +1422,15 @@ class ProvenanceChain:
             if "dataprov:drl" in activity:
                 step["drl"] = activity["dataprov:drl"]
 
+            # Include custom ontology properties of the activity and tool agent
+            custom = _custom_properties(activity)
+            if custom:
+                step["custom_properties"] = custom
+            if tool_agent:
+                custom = _custom_properties(tool_agent)
+                if custom:
+                    step["tool"]["custom_properties"] = custom
+
             # Include agent information if present
             if tool_agent:
                 if "dataprov:user" in tool_agent:
@@ -1418,6 +1455,15 @@ class ProvenanceChain:
         # Sort by step_id
         steps.sort(key=lambda s: s["step_id"])
         return steps
+
+    def get_custom_metadata(self) -> dict[str, Any]:
+        """Get the custom top-level metadata of the chain.
+
+        Returns:
+            Dict[str, Any]: The custom_metadata given to create(), as
+            {'namespace:property': value}
+        """
+        return _custom_properties(self.data)
 
     def get_step(self, step_id: int) -> dict | None:
         """Get a specific step by ID.

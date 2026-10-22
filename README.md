@@ -935,6 +935,7 @@ The HTML report includes:
 - Agent/user information per step
 - Environment information per step
 - File checksums and sizes
+- Custom metadata (collapsible section) and custom properties of steps, tools and input/output files
 - Nested provenance bundles for inputs (showing how input files were created)
 - Interactive styling
 
@@ -1051,7 +1052,13 @@ Save the provenance chain to a JSON file.
 
 Get all processing steps in the chain.
 
-Returns: `list` - All processing steps
+Returns: `list` - All processing steps. Custom properties, if any, are included as a `custom_properties` dict on the step (activity), on its `tool` (agent), and on each entry in `inputs`/`outputs` (entities). An entity's custom properties are those set when it was first recorded, i.e. a file used by several steps shows the properties from the step that first added it.
+
+**`get_custom_metadata()`**
+
+Get the custom top-level metadata given as `custom_metadata` to `create()`.
+
+Returns: `dict` - `{namespace:property: value}` (empty if none)
 
 **`get_step(step_id)`**
 

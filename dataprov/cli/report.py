@@ -9,6 +9,7 @@ Usage:
 import argparse
 import contextlib
 import html
+import json
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -19,6 +20,31 @@ from dataprov import __version__
 def _e(value) -> str:
     """Escape a value from the provenance data for safe inclusion in HTML."""
     return html.escape(str(value), quote=True)
+
+
+def _format_value(value) -> str:
+    """Format a custom property value for HTML: strings as-is, other values as JSON."""
+    if not isinstance(value, str):
+        value = json.dumps(value, ensure_ascii=False)
+    return _e(value)
+
+
+def _render_custom_properties(props: dict, css_class: str, indent: str) -> str:
+    """Render custom ontology properties as one 'key: value' line each.
+
+    Args:
+        props: Custom properties as {'namespace:property': value}
+        css_class: CSS class of each line
+        indent: Indentation prefix for the generated HTML lines
+
+    Returns:
+        str: HTML snippet (empty if there are no properties)
+    """
+    return "".join(
+        f'{indent}<div class="{css_class}"><span class="metadata-label">{_e(key)}:</span>'
+        f" {_format_value(value)}</div>\n"
+        for key, value in props.items()
+    )
 
 
 def _render_nested_bundle(bundle_id: str, bundle_content: dict) -> str:
@@ -302,6 +328,20 @@ def generate_html_report(chain, include_bundles: bool = True) -> str:
             font-weight: bold;
             color: #ff9800;
         }}
+        .custom-props {{
+            background-color: #f3e5f5;
+            padding: 10px;
+            border-left: 4px solid #9C27B0;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-size: 0.9em;
+        }}
+        details.custom-metadata summary {{
+            cursor: pointer;
+            font-weight: bold;
+            color: #555;
+            margin-top: 10px;
+        }}
         .footer {{
             text-align: center;
             margin-top: 40px;
@@ -346,6 +386,18 @@ def generate_html_report(chain, include_bundles: bool = True) -> str:
         for tag in tags:
             html_parts.append(f'            <span class="tag">{tag}</span>\n')
         html_parts.append("        </div>\n")
+
+    # Custom metadata (collapsible, as it can be long)
+    custom_metadata = chain.get_custom_metadata()
+    if custom_metadata:
+        html_parts.append('        <details class="custom-metadata">\n')
+        html_parts.append(
+            f"            <summary>Custom Metadata ({len(custom_metadata)})</summary>\n"
+        )
+        html_parts.append(
+            _render_custom_properties(custom_metadata, "metadata-item", " " * 12)
+        )
+        html_parts.append("        </details>\n")
 
     html_parts.append("    </div>\n")
 
@@ -433,6 +485,19 @@ def generate_html_report(chain, include_bundles: bool = True) -> str:
                 f'        <div class="metadata-item"><span class="metadata-label">Vendor:</span> {tool_vendor}</div>\n'
             )
 
+        # Custom properties of the activity and of the tool (agent)
+        for title, props in (
+            ("Custom Properties", step.get("custom_properties", {})),
+            ("Tool Properties", tool_info.get("custom_properties", {})),
+        ):
+            if props:
+                html_parts.append('        <div class="custom-props">\n')
+                html_parts.append(f"            <strong>{title}:</strong>\n")
+                html_parts.append(
+                    _render_custom_properties(props, "metadata-item", " " * 12)
+                )
+                html_parts.append("        </div>\n")
+
         # Inputs
         inputs = step.get("inputs", [])
         if inputs:
@@ -466,6 +531,11 @@ def generate_html_report(chain, include_bundles: bool = True) -> str:
                     html_parts.append(
                         f'                <div class="file-meta">Checksum: {_e(checksum)}</div>\n'
                     )
+                html_parts.append(
+                    _render_custom_properties(
+                        inp.get("custom_properties", {}), "file-meta", " " * 16
+                    )
+                )
 
                 # Show provenance info for this input if available
                 prov_file = inp.get("provenance_file")
@@ -526,6 +596,11 @@ def generate_html_report(chain, include_bundles: bool = True) -> str:
                     html_parts.append(
                         f'                <div class="file-meta">Checksum: {_e(checksum)}</div>\n'
                     )
+                html_parts.append(
+                    _render_custom_properties(
+                        out.get("custom_properties", {}), "file-meta", " " * 16
+                    )
+                )
                 html_parts.append("            </div>\n")
             html_parts.append("        </div>\n")
 
