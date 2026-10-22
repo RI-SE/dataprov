@@ -10,16 +10,14 @@ Thank you for your interest in contributing to dataprov!
    cd dataprov
    ```
 
-2. Create a virtual environment and install dependencies:
+2. Install [uv](https://docs.astral.sh/uv/) (the pre-commit test hook runs via `uv run`), then create the virtual environment and install dependencies:
    ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   pip install -e ".[dev]"
+   uv sync --extra dev
    ```
 
 3. Install pre-commit hooks:
    ```bash
-   pre-commit install
+   uv run pre-commit install
    ```
 
 ## Code Style
