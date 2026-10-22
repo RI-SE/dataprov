@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `create()`, `add()`, `add_attribution()`, `load()` and `save()` accept path-like objects
+  (e.g. `pathlib.Path`) wherever a file path is expected; paths are stored as strings (#11)
+
+### Changed
+
+- `create()`, `add()` and `add_attribution()` raise `TypeError` immediately if a
+  `custom_metadata` or `custom_properties` value cannot be saved as JSON, instead of failing
+  later in `save()` (#11)
+
+### Fixed
+
+- `save()` no longer truncates an existing provenance file when serialization fails (#11)
+
 ### Security
 
 - `dataprov-report`: All values from the provenance file are now HTML-escaped, so a crafted or

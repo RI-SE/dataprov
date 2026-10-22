@@ -687,6 +687,145 @@ class TestInputValidation:
         assert success is False
 
 
+class TestPathLikeArguments:
+    """Test that path-like objects (pathlib.Path) are accepted and stored as str."""
+
+    def test_create_with_path(self, tmp_path):
+        """initial_source given as Path is stored as a string and saves."""
+        chain = ProvenanceChain.create(entity_id="p", initial_source=tmp_path)
+        assert chain.data["dataprov:metadata"]["initialSource"] == str(tmp_path)
+
+        chain.save(tmp_path / "prov.json")
+        loaded = ProvenanceChain.load(tmp_path / "prov.json")
+        assert loaded.data["dataprov:metadata"]["initialSource"] == str(tmp_path)
+
+    def test_add_with_paths(
+        self, tmp_path, sample_file, sample_provenance_chain, timestamps
+    ):
+        """inputs, outputs and input_provenance_files accept Path objects."""
+        chain = ProvenanceChain.create(entity_id="p", initial_source="/test/")
+        out_file = tmp_path / "out.txt"
+        out_file.write_text("out")
+
+        success = chain.add(
+            started_at=timestamps["started_at"],
+            ended_at=timestamps["ended_at"],
+            tool_name="tool",
+            tool_version="1.0",
+            operation="op",
+            inputs=[sample_file],
+            input_formats=["TXT"],
+            outputs=[out_file],
+            output_formats=["TXT"],
+            input_provenance_files=[sample_provenance_chain],
+        )
+        assert success is True
+
+        step = chain.get_steps()[0]
+        assert step["inputs"][0]["path"] == str(sample_file)
+        assert step["inputs"][0]["provenance_file"] == str(sample_provenance_chain)
+        assert step["outputs"][0]["path"] == str(out_file)
+        assert step["outputs"][0]["checksum"]
+
+        chain.save(tmp_path / "prov.json")
+        json.loads((tmp_path / "prov.json").read_text())
+
+    def test_add_attribution_with_path(self, tmp_path, sample_file):
+        """add_attribution accepts a single Path or a list of Paths."""
+        chain = ProvenanceChain.create(entity_id="p", initial_source="/test/")
+
+        assert chain.add_attribution(sample_file, agent_name="someone") is True
+        assert chain.add_attribution([sample_file], agent_name="other") is True
+
+        assert f"entity:{sample_file}" in chain.data["entity"]
+        chain.save(tmp_path / "prov.json")
+
+    def test_invalid_path_type_rejected(self, timestamps):
+        """A value that is neither str nor path-like raises TypeError immediately."""
+        chain = ProvenanceChain.create(entity_id="p", initial_source="/test/")
+
+        with pytest.raises(TypeError):
+            chain.add(
+                started_at=timestamps["started_at"],
+                ended_at=timestamps["ended_at"],
+                tool_name="tool",
+                tool_version="1.0",
+                operation="op",
+                inputs=[123],
+                input_formats=["TXT"],
+                outputs=[],
+                output_formats=[],
+            )
+
+
+class TestEarlySerializationCheck:
+    """Test that values that cannot be saved as JSON are rejected when added."""
+
+    def test_custom_metadata_not_serializable(self):
+        """create() rejects a custom_metadata value that is not JSON serializable."""
+        with pytest.raises(TypeError, match="myapp:when"):
+            ProvenanceChain.create(
+                entity_id="p",
+                initial_source="/test/",
+                custom_namespaces={"myapp": "https://example.com/myapp#"},
+                custom_metadata={"myapp:when": object()},
+            )
+
+    def test_custom_properties_not_serializable(self, sample_file, timestamps):
+        """add() rejects a custom property value that is not JSON serializable."""
+        chain = ProvenanceChain.create(
+            entity_id="p",
+            initial_source="/test/",
+            custom_namespaces={"myapp": "https://example.com/myapp#"},
+        )
+
+        with pytest.raises(TypeError, match="activity:myapp:count"):
+            chain.add(
+                started_at=timestamps["started_at"],
+                ended_at=timestamps["ended_at"],
+                tool_name="tool",
+                tool_version="1.0",
+                operation="op",
+                inputs=[str(sample_file)],
+                input_formats=["TXT"],
+                outputs=[str(sample_file)],
+                output_formats=["TXT"],
+                custom_properties={"activity:myapp:count": {1, 2}},
+            )
+
+        # Nothing was added to the chain
+        assert chain.get_steps() == []
+
+    def test_attribution_custom_properties_not_serializable(self, sample_file):
+        """add_attribution() rejects a custom property value that is not JSON serializable."""
+        chain = ProvenanceChain.create(
+            entity_id="p",
+            initial_source="/test/",
+            custom_namespaces={"myapp": "https://example.com/myapp#"},
+        )
+
+        with pytest.raises(TypeError, match="entity:myapp:obj"):
+            chain.add_attribution(
+                str(sample_file),
+                agent_name="someone",
+                custom_properties={"entity:myapp:obj": object()},
+            )
+
+    def test_failed_save_keeps_existing_file(self, tmp_path):
+        """A serialization error in save() does not truncate an existing file."""
+        target = tmp_path / "prov.json"
+        chain = ProvenanceChain.create(entity_id="p", initial_source="/test/")
+        chain.save(target)
+        original = target.read_text()
+
+        # Simulate invalid data that bypassed the early checks
+        chain.data["dataprov:metadata"]["description"] = object()
+        with pytest.raises(TypeError):
+            chain.save(target)
+
+        assert target.read_text() == original
+
+
 # =============================================================================
 # Version 2.0 Feature Tests
 # =============================================================================

@@ -933,7 +933,7 @@ The HTML report includes:
 Create a new provenance chain.
 
 - `entity_id` (str): Unique identifier for the data entity
-- `initial_source` (str): Original source file or location
+- `initial_source` (str or Path): Original source file or location
 - `description` (str, optional): Human-readable description
 - `tags` (list, optional): Tags for categorizing the data
 - `custom_namespaces` (dict, optional): Custom ontology namespaces as {prefix: URI} dict
@@ -941,11 +941,13 @@ Create a new provenance chain.
 
 Returns: `ProvenanceChain` instance
 
+Raises `TypeError` if a `custom_metadata` value cannot be saved as JSON.
+
 **`load(filepath)`**
 
 Load an existing provenance chain from a JSON file.
 
-- `filepath` (str): Path to the provenance JSON file
+- `filepath` (str or Path): Path to the provenance JSON file
 
 Returns: `ProvenanceChain` instance
 
@@ -953,7 +955,7 @@ Returns: `ProvenanceChain` instance
 
 Load existing chain or create new one if file doesn't exist.
 
-- `filepath` (str): Path to the provenance JSON file
+- `filepath` (str or Path): Path to the provenance JSON file
 - `**create_kwargs`: Arguments for `create()` if file doesn't exist
 
 Returns: `ProvenanceChain` instance
@@ -970,9 +972,9 @@ Required parameters:
 - `tool_name` (str): Name of the tool
 - `tool_version` (str): Version of the tool
 - `operation` (str): Description of the operation
-- `inputs` (list): Input file paths
+- `inputs` (list): Input file paths (str or Path)
 - `input_formats` (list): Input file formats
-- `outputs` (list): Output file paths
+- `outputs` (list): Output file paths (str or Path)
 - `output_formats` (list): Output file formats
 
 Optional parameters:
@@ -980,7 +982,7 @@ Optional parameters:
 - `arguments` (str): Command line arguments
 - `output_log` (str): Tool execution log output
 - `warnings` (str): Warning messages
-- `input_provenance_files` (list): Provenance files for inputs (checksums calculated automatically)
+- `input_provenance_files` (list): Provenance files for inputs, str or Path (checksums calculated automatically)
 - `drl` (int): Data Readiness Level (0-9)
 - `derivation_map` (dict): Precise input-output mapping {input_idx: [output_indices]} (default: None = all-to-all)
 - `capture_agent` (bool): Capture user/system info (default: False)
@@ -995,12 +997,14 @@ Optional parameters:
 
 Returns: `bool` - True if successful, False otherwise
 
+Raises `TypeError` if a `custom_properties` value cannot be saved as JSON, so the problem is reported when the step is added rather than at `save()`.
+
 **`add_attribution(files, file_formats=None, agent_name=None, agent_type="prov:Person", capture_current_user=False, **optional)`**
 
 Add attribution relationships (wasAttributedTo) for files without requiring a computational activity.
 
 Required parameters (specify exactly one agent option):
-- `files` (str or list): Single file path or list of file paths to attribute
+- `files` (str, Path or list): Single file path or list of file paths to attribute
 - `agent_name` (str): Name of external agent (person or organization) - mutually exclusive with `capture_current_user`
 - `capture_current_user` (bool): If True, attribute to current user - mutually exclusive with `agent_name`
 
@@ -1021,7 +1025,7 @@ Returns: `bool` - True if successful, False otherwise
 
 Save the provenance chain to a JSON file.
 
-- `filepath` (str): Path where to save the file
+- `filepath` (str or Path): Path where to save the file
 - `input_prov` (str): How to handle input provenance files: "reference" (default), "inline", or "both"
   - `"reference"`: Keep file paths as-is (default)
   - `"inline"`: Embed provenance files into a single JSON
