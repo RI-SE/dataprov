@@ -9,11 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `-q`/`--quiet` option for all CLI tools to suppress informational output; errors are
+  still printed (#13)
 - `create()`, `add()`, `add_attribution()`, `load()` and `save()` accept path-like objects
   (e.g. `pathlib.Path`) wherever a file path is expected; paths are stored as strings (#11)
 
 ### Changed
 
+- `dataprov-new` prints its summary to stderr like the other CLI tools (was stdout), and its
+  "next steps" hint now points to `dataprov-add` (#13)
 - `create()`, `add()` and `add_attribution()` raise `TypeError` immediately if a
   `custom_metadata` or `custom_properties` value cannot be saved as JSON, instead of failing
   later in `save()` (#11)

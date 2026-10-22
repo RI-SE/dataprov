@@ -3649,3 +3649,130 @@ class TestHTMLReportEscaping:
 
         assert "<strong>fixture_chain</strong>" in report
         assert '<span class="tag">fixture</span>' in report
+
+
+class TestCLIQuiet:
+    """Tests for the -q/--quiet option of the CLI tools."""
+
+    def _run(self, monkeypatch, module, prog, argv):
+        """Run a CLI tool's main() with the given argv list."""
+        import importlib
+        import sys
+
+        main = importlib.import_module(f"dataprov.cli.{module}").main
+        monkeypatch.setattr(sys, "argv", [prog] + argv)
+        return main()
+
+    def _new_chain(self, monkeypatch, tmp_path, *extra):
+        prov_file = tmp_path / "prov.json"
+        result = self._run(
+            monkeypatch,
+            "newprovchain",
+            "dataprov-new",
+            ["-s", "src", "-o", str(prov_file), "-i", "ent", "--no-verify", *extra],
+        )
+        return result, prov_file
+
+    def test_new_prints_summary_to_stderr(self, monkeypatch, tmp_path, capsys):
+        """Without -q, dataprov-new prints its summary to stderr, not stdout."""
+        result, prov_file = self._new_chain(monkeypatch, tmp_path)
+
+        captured = capsys.readouterr()
+        assert result == 0
+        assert captured.out == ""
+        assert "Created new provenance chain" in captured.err
+        assert "dataprov-add" in captured.err
+
+    def test_new_quiet(self, monkeypatch, tmp_path, capsys):
+        """dataprov-new -q creates the chain without printing anything."""
+        result, prov_file = self._new_chain(monkeypatch, tmp_path, "-q")
+
+        captured = capsys.readouterr()
+        assert result == 0
+        assert prov_file.exists()
+        assert captured.out == ""
+        assert captured.err == ""
+
+    def test_quiet_still_prints_errors(self, monkeypatch, tmp_path, capsys):
+        """Errors are printed even with --quiet."""
+        self._new_chain(monkeypatch, tmp_path, "-q")
+        result, _ = self._new_chain(monkeypatch, tmp_path, "--quiet")
+
+        captured = capsys.readouterr()
+        assert result == 1
+        assert "already exists" in captured.err
+
+    def test_add_quiet(self, monkeypatch, tmp_path, sample_file, capsys):
+        """dataprov-add -q records the step without printing anything."""
+        _, prov_file = self._new_chain(monkeypatch, tmp_path, "-q")
+        result = self._run(
+            monkeypatch,
+            "addstep",
+            "dataprov-add",
+            [
+                "-q",
+                "-p",
+                str(prov_file),
+                "--started-at",
+                "2024-10-15T11:00:00Z",
+                "--tool-name",
+                "tool",
+                "--tool-version",
+                "1.0",
+                "--operation",
+                "op",
+                "-i",
+                str(sample_file),
+                "--input-formats",
+                "TXT",
+                "--outputs",
+                str(sample_file),
+                "--output-formats",
+                "TXT",
+            ],
+        )
+
+        captured = capsys.readouterr()
+        assert result == 0
+        assert len(ProvenanceChain.load(prov_file).get_steps()) == 1
+        assert captured.out == ""
+        assert captured.err == ""
+
+    def test_add_attribution_quiet(self, monkeypatch, tmp_path, sample_file, capsys):
+        """dataprov-add-attribution -q records the attribution silently."""
+        _, prov_file = self._new_chain(monkeypatch, tmp_path, "-q")
+        result = self._run(
+            monkeypatch,
+            "addattribution",
+            "dataprov-add-attribution",
+            ["-q", "-p", str(prov_file), "-i", str(sample_file), "--agent-name", "x"],
+        )
+
+        captured = capsys.readouterr()
+        assert result == 0
+        assert ProvenanceChain.load(prov_file).data["wasAttributedTo"]
+        assert captured.out == ""
+        assert captured.err == ""
+
+    @pytest.mark.parametrize(
+        "module,prog,suffix",
+        [
+            ("visualize", "dataprov-visualize", "dot"),
+            ("report", "dataprov-report", "html"),
+        ],
+    )
+    def test_output_tools_quiet(
+        self, monkeypatch, tmp_path, capsys, module, prog, suffix
+    ):
+        """dataprov-visualize/-report -q -o write the file without printing."""
+        _, prov_file = self._new_chain(monkeypatch, tmp_path, "-q")
+        out_file = tmp_path / f"out.{suffix}"
+        result = self._run(
+            monkeypatch, module, prog, ["-q", str(prov_file), "-o", str(out_file)]
+        )
+
+        captured = capsys.readouterr()
+        assert result == 0
+        assert out_file.exists()
+        assert captured.out == ""
+        assert captured.err == ""

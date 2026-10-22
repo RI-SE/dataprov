@@ -94,6 +94,13 @@ Examples:
         "--version", action="version", version=f"%(prog)s {__version__}"
     )
 
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Suppress informational output (errors are still printed)",
+    )
+
     # Required arguments
     parser.add_argument(
         "-p",
@@ -382,6 +389,9 @@ Examples:
     except Exception as e:
         print(f"Error: Failed to save provenance chain: {e}", file=sys.stderr)
         return 1
+
+    if args.quiet:
+        return 0
 
     # Success message
     input_list = (

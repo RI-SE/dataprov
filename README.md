@@ -779,6 +779,13 @@ with open("provenance.dot", "w") as f:
 
 ## CLI Tools
 
+All CLI tools support these options:
+
+- `--version`: Print the dataprov version and exit
+- `-q`, `--quiet`: Suppress informational output, e.g. when called from scripts (errors are still printed, and the exit code is unchanged)
+
+Informational messages are written to stderr, so stdout only carries data output (e.g. the DOT graph or HTML report when no `-o` is given).
+
 ### dataprov-new
 
 Create a new provenance chain file:

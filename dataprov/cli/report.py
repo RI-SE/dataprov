@@ -577,6 +577,13 @@ Example:
         "--version", action="version", version=f"%(prog)s {__version__}"
     )
 
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Suppress informational output (errors are still printed)",
+    )
+
     parser.add_argument("input", help="Path to provenance JSON file")
 
     parser.add_argument(
@@ -620,7 +627,8 @@ Example:
         try:
             with open(args.output, "w") as f:
                 f.write(html_report)
-            print(f"HTML report written to {args.output}", file=sys.stderr)
+            if not args.quiet:
+                print(f"HTML report written to {args.output}", file=sys.stderr)
         except Exception as e:
             print(f"Error writing output file: {e}", file=sys.stderr)
             return 1
