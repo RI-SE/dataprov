@@ -213,6 +213,24 @@ chain.add(
 chain.save("provenance.json")
 ```
 
+### Output Roles
+
+`output_roles` says what each output is for, so readers can find e.g. quality reports or logs without parsing
+formats. It is recorded as `prov:role` on the output's generation (W3C PROV qualified generation). Suggested roles
+(`dataprov.OUTPUT_ROLES`): `primary` (the data product), `quality` (a quality or uncertainty report about it), `log`
+(a log or decision record), `metadata` (a sidecar describing it); any other string is allowed.
+
+```python
+chain.add(
+    started_at="2024-10-15T11:00:00Z", ended_at="2024-10-15T11:05:00Z",
+    tool_name="stabilizer", tool_version="2.0", operation="stabilization",
+    inputs=["/data/raw.mp4"],
+    outputs=["/data/stable.mp4", "/data/stable.quality.json", "/data/decisions.json"],
+    output_roles=["primary", "quality", "log"],
+)
+chain.get_outputs(role="quality")  # [{"path": "/data/stable.quality.json", "step_id": 1, "role": "quality", ...}]
+```
+
 ### Access the W3C PROV-JSON schema
 
 ```python
@@ -548,6 +566,18 @@ chain = ProvenanceChain.create(
 
 The namespace prefixes are added to the PROV-JSON `prefix` section alongside the required `dataprov`, `prov`, and `xsd` namespaces.
 
+A chain written by another tool may not declare your prefixes. `load()` and `load_or_create()` take the same
+`custom_namespaces` and declare them on the loaded chain, so custom properties work whether the file existed or not;
+`chain.declare_namespaces({...})` does the same on any chain. Declaring a prefix that is reserved or already bound to
+a different URI raises `ValueError`.
+
+```python
+chain = ProvenanceChain.load_or_create(
+    "provenance.json", entity_id="dataset_001", initial_source="/data/raw/",
+    custom_namespaces={"myapp": "https://example.com/myapp/ontology/"},
+)
+```
+
 #### Add Custom Properties with Target Prefixes
 
 Custom properties use the format `target:namespace:property` where target specifies what to add the property to:
@@ -855,6 +885,8 @@ dataprov-add -p provenance.json \
 
 Omit `--ended-at` for steps that are still ongoing or whose end time is not yet known.
 
+`--output-roles` gives the [role](#output-roles) of each output (`-` for none), e.g. `--outputs data.csv run.log --output-roles primary log`.
+
 `--input-formats` and `--output-formats` are optional; when omitted, formats are detected from the file extensions (e.g. `output.csv` → `csv`):
 
 ```bash
@@ -960,11 +992,12 @@ Returns: `ProvenanceChain` instance
 
 Raises `TypeError` if a `custom_metadata` value cannot be saved as JSON.
 
-**`load(filepath)`**
+**`load(filepath, custom_namespaces=None)`**
 
 Load an existing provenance chain from a JSON file.
 
 - `filepath` (str or Path): Path to the provenance JSON file
+- `custom_namespaces` (dict, optional): Namespaces to declare in addition to those in the file (see `declare_namespaces()`)
 
 Returns: `ProvenanceChain` instance
 
@@ -973,7 +1006,7 @@ Returns: `ProvenanceChain` instance
 Load existing chain or create new one if file doesn't exist.
 
 - `filepath` (str or Path): Path to the provenance JSON file
-- `**create_kwargs`: Arguments for `create()` if file doesn't exist
+- `**create_kwargs`: Arguments for `create()` if file doesn't exist; `custom_namespaces` is also declared on a loaded chain
 
 Returns: `ProvenanceChain` instance
 
@@ -995,6 +1028,7 @@ Required parameters:
 Optional parameters:
 - `input_formats` (list): Input file formats, same length as `inputs`. If omitted (or for `None` entries), the format is detected from the file extension, e.g. `data.csv` → `"csv"` (`"unknown"` if there is no extension)
 - `output_formats` (list): Output file formats, auto-detected like `input_formats`
+- `output_roles` (list): Role of each output (`None` entries for none), e.g. `primary`, `quality`, `log`, `metadata`; see [Output Roles](#output-roles)
 - `source` (str): Tool source or organization
 - `arguments` (str): Command line arguments
 - `output_log` (str): Tool execution log output
@@ -1053,6 +1087,16 @@ Save the provenance chain to a JSON file.
 Get all processing steps in the chain.
 
 Returns: `list` - All processing steps. Custom properties, if any, are included as a `custom_properties` dict on the step (activity), on its `tool` (agent), and on each entry in `inputs`/`outputs` (entities). An entity's custom properties are those set when it was first recorded, i.e. a file used by several steps shows the properties from the step that first added it.
+
+**`get_outputs(role=None)`**
+
+Outputs of all steps, each with its `step_id` (and `role` if it has one); only those with `role` if given.
+
+Returns: `list` of output dicts as in `get_steps()`
+
+**`declare_namespaces(namespaces)`**
+
+Declare custom namespaces `{prefix: URI}` on the chain (e.g. one loaded from another tool's file). Raises `ValueError` for a reserved prefix or a prefix already bound to another URI.
 
 **`get_custom_metadata()`**
 

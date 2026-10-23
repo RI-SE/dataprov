@@ -65,6 +65,12 @@ from pathlib import Path
 from typing import Any
 
 DATAPROV_VERSION = "3.0"
+
+# Suggested output roles (add(output_roles=...)); any other string is allowed. A role says what an output is for,
+# so readers can find e.g. quality reports or logs without parsing formats: "primary" = the data product,
+# "quality" = a quality/uncertainty report about it, "log" = a log or decision record, "metadata" = a sidecar
+# describing it.
+OUTPUT_ROLES = ("primary", "quality", "log", "metadata")
 DATAPROV_NS = "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#"
 PROV_NS = "http://www.w3.org/ns/prov#"
 XSD_NS = "http://www.w3.org/2001/XMLSchema#"
@@ -453,6 +459,16 @@ def _detect_format(file_path: str) -> str:
     return Path(file_path).suffix.lstrip(".") or "unknown"
 
 
+def _check_custom_namespaces(custom_namespaces: dict[str, str] | None) -> None:
+    """Raise ValueError if a custom namespace prefix is one of the reserved ones."""
+    for prefix in custom_namespaces or {}:
+        if prefix in STANDARD_PREFIXES:
+            raise ValueError(
+                f"Custom namespace prefix '{prefix}' conflicts with reserved prefix. "
+                f"Reserved prefixes: {STANDARD_PREFIXES}"
+            )
+
+
 def _check_json_value(key: str, value: Any, what: str) -> None:
     """Raise TypeError if a value cannot be saved as JSON.
 
@@ -487,8 +503,8 @@ class ProvenanceChain:
         self.data = data
         self._step_counter = 0
 
-        # Store namespace registry from prefix section
-        self.namespaces = data.get("prefix", {})
+        # Store namespace registry from prefix section (the same dict, so new prefixes are saved)
+        self.namespaces = data.setdefault("prefix", {})
 
         # Count existing steps to initialize counter
         if "activity" in data:
@@ -603,14 +619,7 @@ class ProvenanceChain:
         initial_source = os.fspath(initial_source)
 
         # Validate custom namespaces don't conflict with reserved ones
-        reserved_prefixes = STANDARD_PREFIXES
-        if custom_namespaces:
-            for prefix in custom_namespaces:
-                if prefix in reserved_prefixes:
-                    raise ValueError(
-                        f"Custom namespace prefix '{prefix}' conflicts with reserved prefix. "
-                        f"Reserved prefixes: {reserved_prefixes}"
-                    )
+        _check_custom_namespaces(custom_namespaces)
 
         now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
@@ -668,14 +677,23 @@ class ProvenanceChain:
         return cls(data)
 
     @classmethod
-    def load(cls, filepath: str | os.PathLike) -> "ProvenanceChain":
+    def load(
+        cls,
+        filepath: str | os.PathLike,
+        custom_namespaces: dict[str, str] | None = None,
+    ) -> "ProvenanceChain":
         """Load existing provenance chain from file.
 
         Args:
             filepath: Path to the existing provenance JSON file (PROV-JSON v3.0 format)
+            custom_namespaces: Namespaces to declare in addition to those in the file (optional);
+                             see declare_namespaces()
 
         Returns:
             ProvenanceChain: Loaded provenance chain instance
+
+        Raises:
+            ValueError: If a custom namespace prefix is reserved or already declared with another URI
         """
         with open(filepath) as f:
             data = json.load(f)
@@ -687,7 +705,27 @@ class ProvenanceChain:
                 f"Only PROV-JSON format is supported."
             )
 
-        return cls(data)
+        chain = cls(data)
+        if custom_namespaces:
+            chain.declare_namespaces(custom_namespaces)
+        return chain
+
+    def declare_namespaces(self, namespaces: dict[str, str]) -> None:
+        """Declare custom namespaces on this chain, e.g. one loaded from a file written by another tool.
+
+        Declaring a prefix that is already declared with the same URI is a no-op.
+
+        Raises:
+            ValueError: If a prefix is reserved or already declared with a different URI
+        """
+        _check_custom_namespaces(namespaces)
+        for prefix, uri in namespaces.items():
+            existing = self.namespaces.get(prefix)
+            if existing is not None and existing != uri:
+                raise ValueError(
+                    f"Namespace prefix '{prefix}' is already declared as '{existing}', not '{uri}'"
+                )
+        self.namespaces.update(namespaces)
 
     @classmethod
     def load_or_create(
@@ -697,13 +735,16 @@ class ProvenanceChain:
 
         Args:
             filepath: Path to the provenance JSON file
-            **create_kwargs: Arguments for create() if file doesn't exist
+            **create_kwargs: Arguments for create() if file doesn't exist; custom_namespaces is also
+                           declared on a loaded chain, so custom properties can be added either way
 
         Returns:
             ProvenanceChain: Loaded or newly created provenance chain
         """
         if Path(filepath).exists():
-            return cls.load(filepath)
+            return cls.load(
+                filepath, custom_namespaces=create_kwargs.get("custom_namespaces")
+            )
         return cls.create(**create_kwargs)
 
     def add(
@@ -720,6 +761,7 @@ class ProvenanceChain:
         outputs: list[str | os.PathLike] | None = None,
         output_formats: list[str | None] | None = None,
         # Optional parameters
+        output_roles: list[str | None] | None = None,
         source: str = "",
         arguments: str = "",
         output_log: str = "",
@@ -754,6 +796,8 @@ class ProvenanceChain:
             outputs: List of output file paths (str or path-like)
             output_formats: List of output file formats (same length as outputs). Optional,
                            auto-detected like input_formats
+            output_roles: List of output roles (same length as outputs; None entries for no role),
+                         recorded as prov:role of the generation. Suggested: OUTPUT_ROLES (optional)
             source: Tool source or organization (optional)
             arguments: Command line arguments string (optional)
             output_log: Free-text output log from tool execution (optional)
@@ -810,6 +854,13 @@ class ProvenanceChain:
         if len(outputs) != len(output_formats):
             print(
                 "Error: outputs and output_formats lists must have same length",
+                file=sys.stderr,
+            )
+            return False
+
+        if output_roles is not None and len(output_roles) != len(outputs):
+            print(
+                "Error: outputs and output_roles lists must have same length",
                 file=sys.stderr,
             )
             return False
@@ -1044,10 +1095,10 @@ class ProvenanceChain:
 
             # Create generation relationship
             gen_id = f"_:g_{step_id}_{i}"
-            self.data["wasGeneratedBy"][gen_id] = {
-                "prov:entity": entity_id,
-                "prov:activity": activity_id,
-            }
+            generation = {"prov:entity": entity_id, "prov:activity": activity_id}
+            if output_roles is not None and output_roles[i] is not None:
+                generation["prov:role"] = output_roles[i]
+            self.data["wasGeneratedBy"][gen_id] = generation
 
             # Create derivation relationships
             if derivation_map is None:
@@ -1393,6 +1444,8 @@ class ProvenanceChain:
                         "checksum": entity.get("dataprov:checksum"),
                         "size_bytes": entity.get("dataprov:sizeBytes"),
                     }
+                    if "prov:role" in gen:
+                        output_info["role"] = gen["prov:role"]
                     custom = _custom_properties(entity)
                     if custom:
                         output_info["custom_properties"] = custom
@@ -1455,6 +1508,18 @@ class ProvenanceChain:
         # Sort by step_id
         steps.sort(key=lambda s: s["step_id"])
         return steps
+
+    def get_outputs(self, role: str | None = None) -> list[dict]:
+        """Outputs of all steps, optionally only those with this role; each with its "step_id".
+
+        Example: chain.get_outputs(role="quality") lists the quality reports of the whole chain.
+        """
+        return [
+            {**output, "step_id": step["step_id"]}
+            for step in self.get_steps()
+            for output in step["outputs"]
+            if role is None or output.get("role") == role
+        ]
 
     def get_custom_metadata(self) -> dict[str, Any]:
         """Get the custom top-level metadata of the chain.

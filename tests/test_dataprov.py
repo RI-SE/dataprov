@@ -4013,3 +4013,134 @@ class TestCustomPropertiesInReport:
 
         assert "<details" not in report
         assert '<div class="custom-props">' not in report
+
+
+class TestNamespacesOnLoadedChains:
+    """custom_namespaces also apply to a chain loaded from a file written by another tool."""
+
+    def _saved_chain(self, tmp_path):
+        path = tmp_path / "chain.json"
+        ProvenanceChain.create(entity_id="e", initial_source="/data/").save(path)
+        return path
+
+    def test_load_or_create_declares_namespaces_on_existing_chain(
+        self, tmp_path, sample_file, timestamps
+    ):
+        path = self._saved_chain(tmp_path)
+        chain = ProvenanceChain.load_or_create(
+            path,
+            entity_id="e",
+            initial_source="/data/",
+            custom_namespaces={"myapp": "https://example.org/ns#"},
+        )
+        out = tmp_path / "out.txt"
+        out.write_text("x")
+        assert chain.add(
+            **timestamps,
+            tool_name="t",
+            tool_version="1",
+            operation="o",
+            inputs=[str(sample_file)],
+            outputs=[str(out)],
+            custom_properties={"activity:myapp:mode": "fast"},
+        )
+        chain.save(path)
+        assert (
+            json.loads(path.read_text())["prefix"]["myapp"] == "https://example.org/ns#"
+        )
+
+    def test_declare_namespaces_rejects_reserved_and_conflicting_prefixes(
+        self, tmp_path
+    ):
+        chain = ProvenanceChain.load(
+            self._saved_chain(tmp_path), custom_namespaces={"a": "https://a/#"}
+        )
+        chain.declare_namespaces({"a": "https://a/#"})  # same URI: no-op
+        with pytest.raises(ValueError, match="already declared"):
+            chain.declare_namespaces({"a": "https://other/#"})
+        with pytest.raises(ValueError, match="reserved"):
+            chain.declare_namespaces({"prov": "https://x/#"})
+
+
+class TestOutputRoles:
+    """add(output_roles=...) records prov:role on the generation; get_outputs(role=...) finds them."""
+
+    def _chain_with_roles(self, tmp_path, sample_file, timestamps, roles):
+        chain = ProvenanceChain.create(entity_id="e", initial_source=str(sample_file))
+        outputs = []
+        for name in ("data.mcap", "data.quality.json", "decisions.json"):
+            (tmp_path / name).write_text("x")
+            outputs.append(str(tmp_path / name))
+        ok = chain.add(
+            **timestamps,
+            tool_name="t",
+            tool_version="1",
+            operation="o",
+            inputs=[str(sample_file)],
+            outputs=outputs,
+            output_roles=roles,
+        )
+        return chain, ok, outputs
+
+    def test_roles_recorded_and_found(self, tmp_path, sample_file, timestamps):
+        chain, ok, outputs = self._chain_with_roles(
+            tmp_path, sample_file, timestamps, ["primary", "quality", None]
+        )
+        assert ok
+        generations = list(chain.data["wasGeneratedBy"].values())
+        assert [g.get("prov:role") for g in generations] == ["primary", "quality", None]
+        quality = chain.get_outputs(role="quality")
+        assert [o["path"] for o in quality] == [outputs[1]] and quality[0][
+            "step_id"
+        ] == 1
+        assert len(chain.get_outputs()) == 3
+        valid, errors = chain.validate()
+        assert valid, errors
+
+    def test_roles_length_must_match(self, tmp_path, sample_file, timestamps):
+        _, ok, _ = self._chain_with_roles(
+            tmp_path, sample_file, timestamps, ["primary"]
+        )
+        assert ok is False
+
+    def test_cli_output_roles(self, tmp_path, sample_file):
+        import sys
+
+        from dataprov.cli.addstep import main
+
+        path = tmp_path / "chain.json"
+        ProvenanceChain.create(entity_id="e", initial_source=str(sample_file)).save(
+            path
+        )
+        (tmp_path / "a.csv").write_text("x")
+        (tmp_path / "a.log").write_text("x")
+        old_argv = sys.argv
+        sys.argv = [
+            "dataprov-add",
+            "-p",
+            str(path),
+            "--started-at",
+            "2024-10-15T11:00:00Z",
+            "--tool-name",
+            "t",
+            "--tool-version",
+            "1",
+            "--operation",
+            "o",
+            "-i",
+            str(sample_file),
+            "--outputs",
+            str(tmp_path / "a.csv"),
+            str(tmp_path / "a.log"),
+            "--output-roles",
+            "-",
+            "log",
+        ]
+        try:
+            assert main() == 0
+        finally:
+            sys.argv = old_argv
+        chain = ProvenanceChain.load(path)
+        assert [o["path"] for o in chain.get_outputs(role="log")] == [
+            str(tmp_path / "a.log")
+        ]

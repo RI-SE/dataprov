@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Output roles: `add(output_roles=[...])` records what each output is for as `prov:role` on its generation
+  (W3C PROV qualified generation); suggested roles in `OUTPUT_ROLES` (`primary`, `quality`, `log`, `metadata`).
+  `get_steps()` shows the `role` of outputs, the new `get_outputs(role=...)` lists them across the chain, and
+  `dataprov-add` has `--output-roles`
+- `declare_namespaces()`, and `custom_namespaces` for `load()`; `load_or_create()` now declares its
+  `custom_namespaces` also on a chain loaded from an existing file (previously only on create, so custom
+  properties with those prefixes failed on existing chains)
+
 ## [3.3.0] - 2026-10-22
 
 ### Added
