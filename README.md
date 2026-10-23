@@ -216,9 +216,12 @@ chain.save("provenance.json")
 ### Output Roles
 
 `output_roles` says what each output is for, so readers can find e.g. quality reports or logs without parsing
-formats. It is recorded as `prov:role` on the output's generation (W3C PROV qualified generation). Suggested roles
-(`dataprov.OUTPUT_ROLES`): `primary` (the data product), `quality` (a quality or uncertainty report about it), `log`
-(a log or decision record), `metadata` (a sidecar describing it); any other string is allowed.
+formats. It is recorded as `prov:role` on the output's generation (W3C PROV qualified generation). The dataprov
+ontology defines four roles (`prov:Role` individuals, `dataprov.OUTPUT_ROLES`), given by short name and written as
+their QName: `primary` → `dataprov:PrimaryOutput` (the data product), `quality` → `dataprov:QualityOutput` (a quality
+or uncertainty report about it), `log` → `dataprov:LogOutput` (a log or decision record), `metadata` →
+`dataprov:MetadataOutput` (a sidecar describing it). Other roles are written as given; use a QName of your own
+namespace (declared with `custom_namespaces`) so they stay resolvable.
 
 ```python
 chain.add(
@@ -228,7 +231,8 @@ chain.add(
     outputs=["/data/stable.mp4", "/data/stable.quality.json", "/data/decisions.json"],
     output_roles=["primary", "quality", "log"],
 )
-chain.get_outputs(role="quality")  # [{"path": "/data/stable.quality.json", "step_id": 1, "role": "quality", ...}]
+chain.get_outputs(role="quality")  # [{"path": "/data/stable.quality.json", "step_id": 1,
+                                   #   "role": "dataprov:QualityOutput", ...}]; the QName works too
 ```
 
 ### Access the W3C PROV-JSON schema
@@ -1028,7 +1032,7 @@ Required parameters:
 Optional parameters:
 - `input_formats` (list): Input file formats, same length as `inputs`. If omitted (or for `None` entries), the format is detected from the file extension, e.g. `data.csv` → `"csv"` (`"unknown"` if there is no extension)
 - `output_formats` (list): Output file formats, auto-detected like `input_formats`
-- `output_roles` (list): Role of each output (`None` entries for none), e.g. `primary`, `quality`, `log`, `metadata`; see [Output Roles](#output-roles)
+- `output_roles` (list): Role of each output (`None` entries for none): `primary`, `quality`, `log`, `metadata` (written as `dataprov:PrimaryOutput` etc.) or your own QName; see [Output Roles](#output-roles)
 - `source` (str): Tool source or organization
 - `arguments` (str): Command line arguments
 - `output_log` (str): Tool execution log output
@@ -1090,7 +1094,7 @@ Returns: `list` - All processing steps. Custom properties, if any, are included 
 
 **`get_outputs(role=None)`**
 
-Outputs of all steps, each with its `step_id` (and `role` if it has one); only those with `role` if given.
+Outputs of all steps, each with its `step_id` (and `role` if it has one); only those with `role` if given (short name or QName).
 
 Returns: `list` of output dicts as in `get_steps()`
 

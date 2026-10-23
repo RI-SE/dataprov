@@ -8,7 +8,7 @@ The Dataprov ontology extends the [W3C PROV Ontology](https://www.w3.org/TR/prov
 
 **Namespace URI:** `https://ri-se.github.io/dataprov/ontology/dataprov.ttl#`
 **Prefix:** `dataprov:`
-**Version:** 3.0.0
+**Version:** 3.1.0
 **Format:** Turtle (RDF)
 
 ## Files
@@ -108,6 +108,28 @@ The Dataprov ontology extends the [W3C PROV Ontology](https://www.w3.org/TR/prov
 | Property | Domain | Range | Description |
 |----------|--------|-------|-------------|
 | `dataprov:hadProvenance` | `prov:Usage` | `prov:Bundle` or URI | Link to provenance file/bundle |
+
+## Output Roles
+
+`prov:Role` individuals for the `prov:role` of a generation (`wasGeneratedBy`): what an output of a step is for, so
+readers can find e.g. quality reports without parsing formats. The dataprov library writes the QName when given the
+short name (`add(output_roles=["quality"])`, `dataprov-add --output-roles quality`).
+
+| Role | Short name | Meaning |
+|---|---|---|
+| `dataprov:PrimaryOutput` | `primary` | The data product of a processing step (e.g. the converted file). |
+| `dataprov:QualityOutput` | `quality` | A quality or uncertainty report about another output of the same step (e.g. a quality sidecar). |
+| `dataprov:LogOutput` | `log` | A log or decision record of the step (e.g. which items were removed and why). |
+| `dataprov:MetadataOutput` | `metadata` | A sidecar describing another output of the step (e.g. calibration or frame index). |
+
+```json
+"wasGeneratedBy": {
+  "_:g_1_1": {"prov:entity": "entity:/data/out.quality.json", "prov:activity": "activity:step_1",
+              "prov:role": "dataprov:QualityOutput"}
+}
+```
+
+Other roles may be given as QNames of your own namespace (declare it with `custom_namespaces`).
 
 ## Usage Example
 

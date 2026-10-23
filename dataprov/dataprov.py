@@ -66,11 +66,23 @@ from typing import Any
 
 DATAPROV_VERSION = "3.0"
 
-# Suggested output roles (add(output_roles=...)); any other string is allowed. A role says what an output is for,
-# so readers can find e.g. quality reports or logs without parsing formats: "primary" = the data product,
+# Output roles defined in the dataprov ontology (prov:Role individuals), by short name. A role says what an output
+# is for, so readers can find e.g. quality reports or logs without parsing formats: "primary" = the data product,
 # "quality" = a quality/uncertainty report about it, "log" = a log or decision record, "metadata" = a sidecar
-# describing it.
-OUTPUT_ROLES = ("primary", "quality", "log", "metadata")
+# describing it. add(output_roles=...) writes the QName for a short name; any other string is written as given.
+OUTPUT_ROLES = {
+    "primary": "dataprov:PrimaryOutput",
+    "quality": "dataprov:QualityOutput",
+    "log": "dataprov:LogOutput",
+    "metadata": "dataprov:MetadataOutput",
+}
+
+
+def _role_qname(role: str) -> str:
+    """The ontology QName for a short role name; other roles unchanged."""
+    return OUTPUT_ROLES.get(role, role)
+
+
 DATAPROV_NS = "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#"
 PROV_NS = "http://www.w3.org/ns/prov#"
 XSD_NS = "http://www.w3.org/2001/XMLSchema#"
@@ -797,7 +809,8 @@ class ProvenanceChain:
             output_formats: List of output file formats (same length as outputs). Optional,
                            auto-detected like input_formats
             output_roles: List of output roles (same length as outputs; None entries for no role),
-                         recorded as prov:role of the generation. Suggested: OUTPUT_ROLES (optional)
+                         recorded as prov:role of the generation. Short names of OUTPUT_ROLES ("primary",
+                         "quality", "log", "metadata") are written as their ontology QNames (optional)
             source: Tool source or organization (optional)
             arguments: Command line arguments string (optional)
             output_log: Free-text output log from tool execution (optional)
@@ -1097,7 +1110,7 @@ class ProvenanceChain:
             gen_id = f"_:g_{step_id}_{i}"
             generation = {"prov:entity": entity_id, "prov:activity": activity_id}
             if output_roles is not None and output_roles[i] is not None:
-                generation["prov:role"] = output_roles[i]
+                generation["prov:role"] = _role_qname(output_roles[i])
             self.data["wasGeneratedBy"][gen_id] = generation
 
             # Create derivation relationships
@@ -1512,13 +1525,15 @@ class ProvenanceChain:
     def get_outputs(self, role: str | None = None) -> list[dict]:
         """Outputs of all steps, optionally only those with this role; each with its "step_id".
 
-        Example: chain.get_outputs(role="quality") lists the quality reports of the whole chain.
+        role may be a short name or its QName: chain.get_outputs(role="quality") and
+        get_outputs(role="dataprov:QualityOutput") both list the chain's quality reports.
         """
+        wanted = None if role is None else _role_qname(role)
         return [
             {**output, "step_id": step["step_id"]}
             for step in self.get_steps()
             for output in step["outputs"]
-            if role is None or output.get("role") == role
+            if wanted is None or output.get("role") == wanted
         ]
 
     def get_custom_metadata(self) -> dict[str, Any]:

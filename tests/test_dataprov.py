@@ -4088,7 +4088,14 @@ class TestOutputRoles:
         )
         assert ok
         generations = list(chain.data["wasGeneratedBy"].values())
-        assert [g.get("prov:role") for g in generations] == ["primary", "quality", None]
+        assert [g.get("prov:role") for g in generations] == [
+            "dataprov:PrimaryOutput",
+            "dataprov:QualityOutput",
+            None,
+        ]
+        assert chain.get_outputs(role="dataprov:QualityOutput") == chain.get_outputs(
+            role="quality"
+        )
         quality = chain.get_outputs(role="quality")
         assert [o["path"] for o in quality] == [outputs[1]] and quality[0][
             "step_id"
@@ -4144,3 +4151,32 @@ class TestOutputRoles:
         assert [o["path"] for o in chain.get_outputs(role="log")] == [
             str(tmp_path / "a.log")
         ]
+
+
+def test_custom_role_kept_as_given(tmp_path, sample_file, timestamps):
+    chain = ProvenanceChain.create(
+        entity_id="e",
+        initial_source=str(sample_file),
+        custom_namespaces={"myapp": "https://example.org/ns#"},
+    )
+    (tmp_path / "x.bin").write_text("x")
+    assert chain.add(
+        **timestamps,
+        tool_name="t",
+        tool_version="1",
+        operation="o",
+        inputs=[str(sample_file)],
+        outputs=[str(tmp_path / "x.bin")],
+        output_roles=["myapp:Thumbnail"],
+    )
+    assert chain.get_outputs(role="myapp:Thumbnail")[0]["role"] == "myapp:Thumbnail"
+
+
+def test_ontology_defines_the_output_roles():
+    from pathlib import Path
+
+    from dataprov import OUTPUT_ROLES
+
+    ttl = (Path(__file__).parents[1] / "ontology" / "dataprov.ttl").read_text()
+    for qname in OUTPUT_ROLES.values():
+        assert f"\n{qname}\n    a owl:NamedIndividual, prov:Role" in ttl

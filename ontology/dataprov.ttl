@@ -15,7 +15,7 @@
     dcterms:creator "RISE Research Institutes of Sweden" ;
     dcterms:created "2025-11-27"^^xsd:date ;
     dcterms:license <https://opensource.org/licenses/MIT> ;
-    owl:versionInfo "3.0.0" ;
+    owl:versionInfo "3.1.0" ;
     owl:imports <http://www.w3.org/ns/prov-o#> .
 
 #
@@ -254,4 +254,32 @@ dataprov:hadProvenance
     rdfs:comment "Links to a provenance file or bundle documenting the history of an entity" ;
     rdfs:domain prov:Usage ;
     rdfs:range [ owl:unionOf ( prov:Bundle xsd:anyURI ) ] ;
+    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/dataprov.ttl#> .
+
+#
+# Output Roles (prov:Role individuals; used as prov:role of a generation, i.e. what an output is for)
+#
+
+dataprov:PrimaryOutput
+    a owl:NamedIndividual, prov:Role ;
+    rdfs:label "primary output" ;
+    rdfs:comment "The data product of a processing step (e.g. the converted file)." ;
+    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/dataprov.ttl#> .
+
+dataprov:QualityOutput
+    a owl:NamedIndividual, prov:Role ;
+    rdfs:label "quality output" ;
+    rdfs:comment "A quality or uncertainty report about another output of the same step (e.g. a quality sidecar)." ;
+    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/dataprov.ttl#> .
+
+dataprov:LogOutput
+    a owl:NamedIndividual, prov:Role ;
+    rdfs:label "log output" ;
+    rdfs:comment "A log or decision record of the step (e.g. which items were removed and why)." ;
+    rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/dataprov.ttl#> .
+
+dataprov:MetadataOutput
+    a owl:NamedIndividual, prov:Role ;
+    rdfs:label "metadata output" ;
+    rdfs:comment "A sidecar describing another output of the step (e.g. calibration or frame index)." ;
     rdfs:isDefinedBy <https://ri-se.github.io/dataprov/ontology/dataprov.ttl#> .
