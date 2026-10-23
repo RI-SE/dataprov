@@ -15,6 +15,23 @@
       "@type": "@id"
     },
 
+    "PrimaryOutput": {
+      "@id": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#PrimaryOutput",
+      "@type": "@id"
+    },
+    "QualityOutput": {
+      "@id": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#QualityOutput",
+      "@type": "@id"
+    },
+    "LogOutput": {
+      "@id": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#LogOutput",
+      "@type": "@id"
+    },
+    "MetadataOutput": {
+      "@id": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#MetadataOutput",
+      "@type": "@id"
+    },
+
     "checksum": {
       "@id": "https://ri-se.github.io/dataprov/ontology/dataprov.ttl#checksum",
       "@type": "xsd:string"

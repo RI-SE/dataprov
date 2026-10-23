@@ -128,7 +128,8 @@
         "properties": {
           "prov:entity": {"type": "string"},
           "prov:activity": {"type": "string"},
-          "prov:time": {"type": "string", "format": "date-time"}
+          "prov:time": {"type": "string", "format": "date-time"},
+          "prov:role": {"type": "string", "description": "What the output is for, e.g. dataprov:PrimaryOutput, dataprov:QualityOutput, dataprov:LogOutput, dataprov:MetadataOutput"}
         }
       }
     },

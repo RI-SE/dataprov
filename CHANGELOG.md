@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.4.0] - 2026-10-23
+
+### Added
+
+- Output roles: `add(output_roles=[...])` records what each output is for as `prov:role` on its generation
+  (W3C PROV qualified generation). The ontology (3.1.0) defines `dataprov:PrimaryOutput`, `QualityOutput`,
+  `LogOutput` and `MetadataOutput` (`prov:Role` individuals, also in the JSON-LD context); short names `primary`,
+  `quality`, `log`, `metadata` (`OUTPUT_ROLES`) are written as these QNames, other roles as given.
+  `get_steps()` shows the `role` of outputs, the new `get_outputs(role=...)` lists them across the chain, and
+  `dataprov-add` has `--output-roles`
+- `declare_namespaces()`, and `custom_namespaces` for `load()`; `load_or_create()` now declares its
+  `custom_namespaces` also on a chain loaded from an existing file (previously only on create, so custom
+  properties with those prefixes failed on existing chains)
+
 ## [3.3.0] - 2026-10-22
 
 ### Added
@@ -117,6 +131,7 @@ Initial public release.
 - RDF/Turtle and JSON-LD ontology definitions
 - W3C PROV-JSON schema included
 
+[3.4.0]: https://github.com/RI-SE/dataprov/releases/tag/v3.4.0
 [3.3.0]: https://github.com/RI-SE/dataprov/releases/tag/v3.3.0
 [3.2.0]: https://github.com/RI-SE/dataprov/releases/tag/v3.2.0
 [3.0.2]: https://github.com/RI-SE/dataprov/releases/tag/v3.0.2

@@ -33,7 +33,7 @@ import importlib.metadata
 import importlib.resources
 import json
 
-from dataprov.dataprov import ProvenanceChain
+from dataprov.dataprov import OUTPUT_ROLES, ProvenanceChain
 
 try:
     __version__ = importlib.metadata.version("dataprov")
@@ -41,7 +41,7 @@ except importlib.metadata.PackageNotFoundError:
     # Running from a source checkout without an installed/editable install.
     __version__ = "unknown"
 
-__all__ = ["ProvenanceChain", "get_schema"]
+__all__ = ["OUTPUT_ROLES", "ProvenanceChain", "get_schema"]
 
 
 def get_schema():

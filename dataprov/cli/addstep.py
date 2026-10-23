@@ -172,6 +172,14 @@ Examples:
         " (default: detected from file extensions)",
     )
 
+    parser.add_argument(
+        "--output-roles",
+        nargs="+",
+        metavar="ROLE",
+        help="Role of each output, e.g. primary, quality, log, metadata; '-' for none"
+        " — must match number of outputs (optional)",
+    )
+
     # Optional step metadata
     parser.add_argument(
         "--ended-at",
@@ -305,6 +313,14 @@ Examples:
         )
         return 1
 
+    if args.output_roles is not None and len(args.outputs) != len(args.output_roles):
+        print(
+            f"Error: Number of --output-roles ({len(args.output_roles)}) must match"
+            f" number of --outputs ({len(args.outputs)})",
+            file=sys.stderr,
+        )
+        return 1
+
     # Validate input provenance files list length
     if args.input_provenance_files is not None and len(
         args.input_provenance_files
@@ -366,6 +382,9 @@ Examples:
             input_formats=args.input_formats,
             outputs=args.outputs,
             output_formats=args.output_formats,
+            output_roles=None
+            if args.output_roles is None
+            else [None if role == "-" else role for role in args.output_roles],
             source=args.source,
             arguments=args.arguments,
             output_log=args.output_log,
